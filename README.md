@@ -17,6 +17,17 @@ The three locations are set in `firmware/include/locations.h` (not stored in the
 - USB-C cable and USB power supply
 - 15 female-to-female jumper wires (or solder wires directly)
 
+## Photos
+
+<img src="docs/photos/WhatsApp%20Image%202026-10-26%20at%2007.47.59.jpeg" alt="Screen shield, back" width="160">
+<img src="docs/photos/WhatsApp%20Image%202026-10-26%20at%2007.56.12.jpeg" alt="ESP32-C3 SuperMini" width="140">
+<img src="docs/photos/WhatsApp%20Image%202026-10-26%20at%2008.11.37.jpeg" alt="Screen size, front" width="160">
+<img src="docs/photos/WhatsApp%20Image%202026-10-26%20at%2008.11.50.jpeg" alt="Screen size, front" width="160">
+<img src="docs/photos/WhatsApp%20Image%202026-10-26%20at%2008.13.16.jpeg" alt="Screen size, front" width="160">
+
+<img src="docs/photos/WhatsApp%20Image%202026-10-26%20at%2015.47.39%20(1).jpeg" alt="Wired up in the frame, back view" width="320">
+<img src="docs/photos/WhatsApp%20Image%202026-10-26%20at%2015.47.39.jpeg" alt="Wired up in the frame, side view" width="320">
+
 ## Build Steps
 
 ### 1. Print the case
