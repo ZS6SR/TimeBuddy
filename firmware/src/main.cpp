@@ -10,9 +10,8 @@
 #include "config.h"
 #include "secrets.h"
 #include "fonts/FreeSans9pt7b.h"
-#include "fonts/FreeSansBold12pt7b.h"
-#include "fonts/FreeSansBold18pt7b.h"
-#include "fonts/FreeSansBold24pt7b.h"
+#include "fonts/FreeSans12pt7b.h"
+#include "fonts/FreeSans18pt7b.h"
 
 static const int PAD = 14;
 
@@ -43,13 +42,14 @@ Arduino_Canvas *canvas = nullptr;
 Preferences prefs;
 
 struct Layout {
-  int name, icon, temp, time, date;
+  int title, date, icon, temp;
 };
-static const Layout PORTRAIT_LAYOUT = {56, 96, 110, 100, 128};
-static const Layout LANDSCAPE_LAYOUT = {30, 68, 82, 60, 88};
+static const Layout PORTRAIT_LAYOUT = {50, 76, 110, 124};
+static const Layout LANDSCAPE_LAYOUT = {38, 58, 76, 90};
+static const int ROWS_PERCENT_LANDSCAPE = 40;
 
 static bool landscape = false;
-static int scrW, scrH, rowStep;
+static int scrW, scrH, rowW, rowStep;
 static const Layout *layout = &PORTRAIT_LAYOUT;
 
 struct Weather {
@@ -82,27 +82,33 @@ static Icon iconFor(int code) {
   }
 }
 
-static void drawSun(int cx, int cy, int r) {
+static const float ICON_SCALE = 0.75f;
+
+static int sc(float v) {
+  return lroundf(v * ICON_SCALE);
+}
+
+static void drawSun(int cx, int cy, float r) {
   for (int a = 0; a < 360; a += 45) {
     float rad = a * DEG_TO_RAD;
-    int x0 = cx + cosf(rad) * (r + 4), y0 = cy + sinf(rad) * (r + 4);
-    int x1 = cx + cosf(rad) * (r + 8), y1 = cy + sinf(rad) * (r + 8);
+    int x0 = cx + cosf(rad) * sc(r + 4), y0 = cy + sinf(rad) * sc(r + 4);
+    int x1 = cx + cosf(rad) * sc(r + 8), y1 = cy + sinf(rad) * sc(r + 8);
     canvas->drawLine(x0, y0, x1, y1, COL_SUN);
     canvas->drawLine(x0 + 1, y0, x1 + 1, y1, COL_SUN);
   }
-  canvas->fillCircle(cx, cy, r, COL_SUN);
+  canvas->fillCircle(cx, cy, sc(r), COL_SUN);
 }
 
-static void drawMoon(int cx, int cy, int r) {
-  canvas->fillCircle(cx, cy, r, COL_MOON);
-  canvas->fillCircle(cx + r / 2 + 2, cy - r / 3, r - 1, COL_BG);
+static void drawMoon(int cx, int cy, float r) {
+  canvas->fillCircle(cx, cy, sc(r), COL_MOON);
+  canvas->fillCircle(cx + sc(r / 2 + 2), cy - sc(r / 3), sc(r - 1), COL_BG);
 }
 
 static void drawCloud(int cx, int cy, uint16_t colour) {
-  canvas->fillCircle(cx - 10, cy + 2, 8, colour);
-  canvas->fillCircle(cx + 1, cy - 5, 11, colour);
-  canvas->fillCircle(cx + 11, cy + 2, 8, colour);
-  canvas->fillRoundRect(cx - 18, cy + 1, 37, 10, 5, colour);
+  canvas->fillCircle(cx - sc(10), cy + sc(2), sc(8), colour);
+  canvas->fillCircle(cx + sc(1), cy - sc(5), sc(11), colour);
+  canvas->fillCircle(cx + sc(11), cy + sc(2), sc(8), colour);
+  canvas->fillRoundRect(cx - sc(18), cy + sc(1), sc(37), sc(10), sc(5), colour);
 }
 
 static void drawIcon(Icon icon, bool isDay, int cx, int cy) {
@@ -112,39 +118,39 @@ static void drawIcon(Icon icon, bool isDay, int cx, int cy) {
       else drawMoon(cx, cy, 13);
       break;
     case ICON_PARTLY:
-      if (isDay) drawSun(cx + 8, cy - 8, 8);
-      else drawMoon(cx + 8, cy - 8, 10);
-      drawCloud(cx - 3, cy + 5, COL_CLOUD);
+      if (isDay) drawSun(cx + sc(8), cy - sc(8), 8);
+      else drawMoon(cx + sc(8), cy - sc(8), 10);
+      drawCloud(cx - sc(3), cy + sc(5), COL_CLOUD);
       break;
     case ICON_CLOUDY:
       drawCloud(cx, cy, COL_CLOUD);
       break;
     case ICON_FOG:
       for (int i = 0; i < 4; i++) {
-        int w = (i % 2) ? 30 : 38;
-        canvas->fillRoundRect(cx - w / 2, cy - 12 + i * 8, w, 4, 2, COL_CLOUD);
+        int w = sc((i % 2) ? 30 : 38);
+        canvas->fillRoundRect(cx - w / 2, cy - sc(12) + i * sc(8), w, sc(4), sc(2), COL_CLOUD);
       }
       break;
     case ICON_RAIN:
-      drawCloud(cx, cy - 6, COL_CLOUD);
+      drawCloud(cx, cy - sc(6), COL_CLOUD);
       for (int i = -1; i <= 1; i++) {
-        int x = cx + i * 10;
-        canvas->drawLine(x + 2, cy + 9, x - 2, cy + 17, COL_RAIN);
-        canvas->drawLine(x + 3, cy + 9, x - 1, cy + 17, COL_RAIN);
+        int x = cx + i * sc(10);
+        canvas->drawLine(x + sc(2), cy + sc(9), x - sc(2), cy + sc(17), COL_RAIN);
+        canvas->drawLine(x + sc(2) + 1, cy + sc(9), x - sc(2) + 1, cy + sc(17), COL_RAIN);
       }
       break;
     case ICON_SNOW:
-      drawCloud(cx, cy - 6, COL_CLOUD);
+      drawCloud(cx, cy - sc(6), COL_CLOUD);
       for (int i = -1; i <= 1; i++) {
-        int x = cx + i * 10;
-        canvas->fillCircle(x, cy + 12, 2, COL_SNOW);
-        canvas->fillCircle(x + 5, cy + 18, 2, COL_SNOW);
+        int x = cx + i * sc(10);
+        canvas->fillCircle(x, cy + sc(12), 2, COL_SNOW);
+        canvas->fillCircle(x + sc(5), cy + sc(18), 2, COL_SNOW);
       }
       break;
     case ICON_THUNDER:
-      drawCloud(cx, cy - 6, COL_DARK_CLOUD);
-      canvas->fillTriangle(cx + 2, cy + 4, cx - 6, cy + 14, cx + 1, cy + 14, COL_SUN);
-      canvas->fillTriangle(cx - 1, cy + 12, cx + 6, cy + 12, cx - 3, cy + 22, COL_SUN);
+      drawCloud(cx, cy - sc(6), COL_DARK_CLOUD);
+      canvas->fillTriangle(cx + sc(2), cy + sc(4), cx - sc(6), cy + sc(14), cx + sc(1), cy + sc(14), COL_SUN);
+      canvas->fillTriangle(cx - sc(1), cy + sc(12), cx + sc(6), cy + sc(12), cx - sc(3), cy + sc(22), COL_SUN);
       break;
     default:
       break;
@@ -163,7 +169,7 @@ static void printAt(const GFXfont *font, const char *text, int x, int y, uint16_
 
 static void showStatus(const char *line1, const char *line2) {
   gfx->fillScreen(COL_BG);
-  gfx->setFont(&FreeSansBold12pt7b);
+  gfx->setFont(&FreeSans12pt7b);
   gfx->setTextColor(COL_TEXT);
   gfx->setCursor(30, 140);
   gfx->print(line1);
@@ -177,13 +183,17 @@ static void applyOrientation() {
   gfx->setRotation(landscape ? LANDSCAPE_ROTATION : PORTRAIT_ROTATION);
   scrW = gfx->width();
   scrH = gfx->height();
+  rowW = landscape ? scrW * ROWS_PERCENT_LANDSCAPE / 100 : scrW;
   rowStep = scrH / 3;
   layout = landscape ? &LANDSCAPE_LAYOUT : &PORTRAIT_LAYOUT;
 
   delete canvas;
-  canvas = new Arduino_Canvas(scrW, scrH - 2 * rowStep, gfx);
+  canvas = new Arduino_Canvas(rowW, scrH - 2 * rowStep, gfx);
   canvas->begin(GFX_SKIP_OUTPUT_BEGIN);
   gfx->fillScreen(COL_BG);
+  if (rowW < scrW) {
+    gfx->drawFastVLine(rowW, PAD, scrH - 2 * PAD, COL_LINE);
+  }
 }
 
 static void localTimeFor(const Location &loc, time_t now, struct tm *out) {
@@ -199,45 +209,43 @@ static void drawRow(int i, time_t now) {
 
   canvas->fillScreen(COL_BG);
   if (i > 0) {
-    canvas->drawFastHLine(PAD, 0, scrW - 2 * PAD, COL_LINE);
+    canvas->drawFastHLine(PAD, 0, rowW - 2 * PAD, COL_LINE);
   }
 
-  printAt(&FreeSansBold12pt7b, loc.name, PAD, layout->name, COL_NAME, false);
+  printAt(&FreeSans12pt7b, loc.name, PAD, layout->title, COL_NAME, false);
+
+  char buf[32];
+  strftime(buf, sizeof(buf), "%H:%M", &t);
+  printAt(&FreeSans18pt7b, buf, rowW - PAD, layout->title, COL_TEXT, true);
+  strftime(buf, sizeof(buf), "%a %d %b", &t);
+  printAt(&FreeSans9pt7b, buf, rowW - PAD, layout->date, COL_DIM, true);
 
   const Weather &w = weather[i];
   if (w.valid) {
-    drawIcon(iconFor(w.code), w.isDay, PAD + 22, layout->icon);
+    drawIcon(iconFor(w.code), w.isDay, PAD + 16, layout->icon);
 
-    char buf[16];
     snprintf(buf, sizeof(buf), "%d", (int)lroundf(w.temp));
     int16_t x1, y1;
     uint16_t tw, th;
-    int tx = PAD + 56;
+    int tx = PAD + 38;
     int ty = layout->temp;
-    canvas->setFont(&FreeSansBold18pt7b);
+    canvas->setFont(&FreeSans12pt7b);
     canvas->getTextBounds(buf, 0, ty, &x1, &y1, &tw, &th);
     canvas->setTextColor(COL_TEMP);
     canvas->setCursor(tx - x1, ty);
     canvas->print(buf);
-    int dx = tx + tw + 7;
-    canvas->drawCircle(dx, y1 + 5, 4, COL_TEMP);
-    canvas->drawCircle(dx, y1 + 5, 3, COL_TEMP);
-    canvas->setFont(&FreeSansBold12pt7b);
-    canvas->setCursor(dx + 6, y1 + 18);
+    int dx = tx + tw + 5;
+    canvas->drawCircle(dx, y1 + 3, 2, COL_TEMP);
+    canvas->setFont(&FreeSans9pt7b);
+    canvas->setCursor(dx + 4, y1 + 13);
     canvas->print("C");
   } else {
-    printAt(&FreeSansBold18pt7b, "--", PAD, layout->temp, COL_DIM, false);
+    printAt(&FreeSans12pt7b, "--", PAD, layout->temp, COL_DIM, false);
   }
-
-  char buf[32];
-  strftime(buf, sizeof(buf), "%H:%M", &t);
-  printAt(&FreeSansBold24pt7b, buf, scrW - PAD, layout->time, COL_TEXT, true);
-  strftime(buf, sizeof(buf), "%a %d %b", &t);
-  printAt(&FreeSans9pt7b, buf, scrW - PAD, layout->date, COL_DIM, true);
 
   int y = i * rowStep;
   int h = (i == 2) ? scrH - y : rowStep;
-  gfx->draw16bitRGBBitmap(0, y, canvas->getFramebuffer(), scrW, h);
+  gfx->draw16bitRGBBitmap(0, y, canvas->getFramebuffer(), rowW, h);
 }
 
 static void drawAll() {
