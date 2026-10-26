@@ -1,0 +1,109 @@
+# TimeBuddy
+
+A small desk display showing the current time and temperature in three locations.
+
+## Locations
+
+The three locations are set in `firmware/include/locations.h` (not stored in the repository). Copy `locations.example.h` to `locations.h` and set, for each location:
+
+- the label shown on screen
+- latitude and longitude, used for the weather
+- a POSIX TZ string, used for the time (for example `GMT0BST,M3.5.0/1,M10.5.0` for London)
+
+## Hardware
+
+- ESP32-C3 SuperMini (HW-466AB)
+- 3.5" TFT LCD Shield, Arduino UNO format, 480x320, 8-bit parallel (ILI9486 or ST7796 controller), PCB 85.49 x 55.63 mm
+- USB-C cable and USB power supply
+- 15 female-to-female jumper wires (or solder wires directly)
+
+## Build Steps
+
+### 1. Print the case
+
+Print the files from `case/`:
+
+| File | Print orientation | Supports |
+|---|---|---|
+| `timebuddy_frame.stl` | Front face down on the bed | None |
+| `timebuddy_back.stl` | Flat side down | None |
+| `timebuddy_stand.stl` | Flat side down | None |
+
+PLA, 0.2 mm layers, 20% infill is fine.
+
+The window is 75 x 50.5 mm with an equal border on all four sides. The board pocket behind it is shifted 3 mm to match the panel (the glass sits near one end of the board, with a black strip and ribbon cable at the other). Adjust `WINDOW_OFFSET_X` in `case/make_case.py` and regenerate if needed.
+
+### 2. Wire the screen to the ESP32
+
+![Wiring diagram](docs/wiring.png)
+
+The pin labels are printed on the back of the screen.
+
+| Screen pin | Connect to |
+|---|---|
+| LCD_D0 | ESP32 `0` |
+| LCD_D1 | ESP32 `1` |
+| LCD_D2 | ESP32 `2` |
+| LCD_D3 | ESP32 `3` |
+| LCD_D4 | ESP32 `4` |
+| LCD_D5 | ESP32 `5` |
+| LCD_D6 | ESP32 `6` |
+| LCD_D7 | ESP32 `7` |
+| LCD_WR | ESP32 `10` |
+| LCD_RS | ESP32 `20` |
+| LCD_RST | ESP32 `21` |
+| LCD_RD | ESP32 `3.3` |
+| LCD_CS | Screen `GND` (second GND pin on the screen) |
+| 5V | ESP32 `5V` |
+| GND | ESP32 `G` |
+
+**Don't skip the `LCD_CS` jumper.** It is a short wire on the screen itself, from `LCD_CS` to the second `GND` pin. Without it the screen may work for a while and then stay white.
+
+Leave unconnected: screen `3.3V`, `RESET`, `F_CS` and all `SD_*` pins; ESP32 pins `8` and `9`.
+
+These pins match `firmware/include/config.h`.
+
+### 3. Assemble
+
+1. Push the screen face-first into the frame the way round that lines the screen up with the window (turned the wrong way, it sits 6 mm off). If it is loose, add a small dab of hot glue in each corner.
+2. Tape the ESP32 to the back of the screen with the USB-C port facing down. Keep the `BOOT` button uncovered so you can still press it.
+3. Slide the USB cable into the slot in the side wall, then press the back on until it clicks.
+4. Slot the bottom edge of the frame into the stand.
+
+### 4. Flash and power
+
+1. Install [PlatformIO](https://platformio.org/install) (VS Code extension or `pip install platformio`).
+2. Copy `firmware/include/secrets.example.h` to `firmware/include/secrets.h` and put in your WiFi name and password.
+   Copy `firmware/include/locations.example.h` to `firmware/include/locations.h` and set your three locations.
+3. Plug the ESP32 into your computer with USB-C and run:
+   ```
+   cd firmware
+   pio run -t upload
+   ```
+   If the upload doesn't start, hold the ESP32's `BOOT` button while plugging it in, then try again.
+4. Unplug it and power it from any USB charger.
+
+The screen shows "Connecting…", then "Syncing time…", then the three clocks. Temperatures update every 10 minutes.
+
+### 5. Switch between portrait and landscape
+
+Press the `BOOT` button on the ESP32. The screen turns between portrait and landscape straight away, and the choice is remembered after power-off.
+
+### 6. If the screen looks wrong
+
+All settings are in `firmware/include/config.h`. Change one, then upload again.
+
+| Problem | Setting |
+|---|---|
+| Screen stays white or shows noise | `DISPLAY_ST7796` — change `0` to `1` |
+| Picture is upside down | `PORTRAIT_ROTATION` — change `4` to `6`; `LANDSCAPE_ROTATION` — change `1` to `3` |
+| Black background shows white | `DISPLAY_INVERT` — change `false` to `true` |
+
+## Regenerating the case
+
+`case/make_case.py` builds both STL files. Requires `trimesh`, `manifold3d` and `numpy`:
+
+```
+pip install trimesh manifold3d numpy
+python case/make_case.py
+```
