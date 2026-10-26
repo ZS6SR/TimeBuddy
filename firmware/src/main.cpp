@@ -21,6 +21,7 @@ static const uint16_t COL_NAME = RGB565(120, 180, 255);
 static const uint16_t COL_DIM = RGB565(140, 155, 180);
 static const uint16_t COL_TEMP = RGB565(255, 190, 90);
 static const uint16_t COL_LINE = RGB565(45, 55, 75);
+static const uint16_t COL_BORDER = RGB565(70, 85, 110);
 static const uint16_t COL_SUN = RGB565(255, 200, 40);
 static const uint16_t COL_MOON = RGB565(220, 225, 240);
 static const uint16_t COL_CLOUD = RGB565(200, 208, 220);
@@ -192,7 +193,12 @@ static void applyOrientation() {
   canvas->begin(GFX_SKIP_OUTPUT_BEGIN);
   gfx->fillScreen(COL_BG);
   if (rowW < scrW) {
-    gfx->drawFastVLine(rowW, PAD, scrH - 2 * PAD, COL_LINE);
+    const int gap = 8;
+    int x = rowW + gap;
+    int w = scrW - x - gap;
+    int h = (scrH - 3 * gap) / 2;
+    gfx->drawRoundRect(x, gap, w, h, 6, COL_BORDER);
+    gfx->drawRoundRect(x, 2 * gap + h, w, h, 6, COL_BORDER);
   }
 }
 
