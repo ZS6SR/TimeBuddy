@@ -199,6 +199,12 @@ static void applyOrientation() {
     int h = (scrH - 3 * gap) / 2;
     gfx->drawRoundRect(x, gap, w, h, 6, COL_BORDER);
     gfx->drawRoundRect(x, 2 * gap + h, w, h, 6, COL_BORDER);
+    gfx->setFont(&FreeSans12pt7b);
+    gfx->setTextColor(COL_NAME);
+    gfx->setCursor(x + 10, gap + 26);
+    gfx->print("MotoGP");
+    gfx->setCursor(x + 10, 2 * gap + h + 26);
+    gfx->print("F1");
   }
 }
 
