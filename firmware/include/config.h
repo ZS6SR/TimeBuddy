@@ -28,6 +28,12 @@
 #define WEATHER_REFRESH_MS (10UL * 60UL * 1000UL)
 #define WEATHER_RETRY_MS (30UL * 1000UL)
 
+#define RACE_REFRESH_MS (6UL * 60UL * 60UL * 1000UL)
+#define RACE_RETRY_MS (5UL * 60UL * 1000UL)
+
+// Race times are shown in this location's time zone (index into LOCATIONS).
+#define RACE_TIME_LOCATION 1
+
 struct Location {
   const char *name;
   const char *country;
