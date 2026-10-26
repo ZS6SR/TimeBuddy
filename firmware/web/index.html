@@ -7,14 +7,21 @@
 <style>
   :root {
     --bg: #0a0e18;
-    --panel: #141a28;
+    --panel: #121826;
+    --panel-head: #18203a;
+    --field: #0a0e18;
     --text: #ebf0f8;
     --dim: #8c9bb4;
     --accent: #78b4ff;
-    --border: #46556e;
+    --accent-soft: rgba(120, 180, 255, 0.12);
+    --border: #2c3850;
+    --border-strong: #46556e;
     --error: #ff6b6b;
+    --ok: #6bdc9a;
+    --warn: #ffbe5a;
   }
   * { box-sizing: border-box; }
+  [hidden] { display: none !important; }
   body {
     margin: 0;
     padding: 16px;
@@ -22,15 +29,14 @@
     color: var(--text);
     font: 15px/1.4 Helvetica, Arial, sans-serif;
   }
+  .wrap { max-width: 720px; margin: 0 auto; }
   header {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    max-width: 720px;
-    margin: 0 auto 12px;
+    margin-bottom: 12px;
   }
   h1 { font-size: 20px; margin: 0; font-weight: 600; }
-  h2 { font-size: 15px; margin: 0 0 8px; color: var(--accent); font-weight: 600; }
   #gear {
     background: none;
     border: 0;
@@ -39,52 +45,118 @@
     padding: 6px;
     line-height: 0;
   }
-  #gear:hover, #gear[aria-expanded="true"] { color: var(--text); }
+  #gear:hover, #gear[aria-expanded="true"] { color: var(--accent); }
   #screen {
     display: block;
     margin: 0 auto;
-    max-width: 720px;
     width: 100%;
     border: 6px solid #000;
     border-radius: 6px;
   }
   #screen.portrait { max-width: 320px; }
-  #setup {
-    max-width: 720px;
-    margin: 16px auto 0;
-    display: grid;
-    gap: 12px;
+  #screen[hidden] { display: none; }
+  .banner {
+    background: rgba(255, 190, 90, 0.1);
+    border: 1px solid var(--warn);
+    border-radius: 8px;
+    padding: 12px 14px;
+    margin-bottom: 16px;
   }
+  .banner[hidden] { display: none; }
+  #setup { margin-top: 20px; display: grid; gap: 20px; }
   #setup[hidden] { display: none; }
-  .card {
+  section {
     background: var(--panel);
     border: 1px solid var(--border);
-    border-radius: 6px;
-    padding: 12px;
+    border-radius: 10px;
+    overflow: hidden;
   }
-  .row { display: flex; gap: 8px; flex-wrap: wrap; }
-  .row > * { flex: 1 1 140px; min-width: 0; }
+  section > .head {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 12px 16px;
+    background: var(--panel-head);
+    border-bottom: 1px solid var(--border);
+  }
+  section > .head .icon {
+    flex: none;
+    width: 34px;
+    height: 34px;
+    border-radius: 8px;
+    display: grid;
+    place-items: center;
+    background: var(--accent-soft);
+    color: var(--accent);
+  }
+  section > .head h2 { margin: 0; font-size: 16px; font-weight: 600; }
+  section > .head p { margin: 2px 0 0; font-size: 13px; color: var(--dim); }
+  section > .body { padding: 16px; display: grid; gap: 14px; }
+  .item {
+    display: grid;
+    grid-template-columns: 74px 1fr;
+    gap: 12px;
+    align-items: start;
+  }
+  .item + .item { border-top: 1px solid var(--border); padding-top: 14px; }
+  .slot {
+    font-size: 12px;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: var(--accent);
+    background: var(--accent-soft);
+    border-radius: 999px;
+    padding: 4px 8px;
+    text-align: center;
+    margin-top: 22px;
+  }
+  .grid { display: grid; gap: 10px; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); }
   label { display: block; font-size: 13px; color: var(--dim); margin-bottom: 4px; }
   input, select, button {
     font: inherit;
     color: var(--text);
-    background: var(--bg);
-    border: 1px solid var(--border);
-    border-radius: 4px;
-    padding: 6px 8px;
+    background: var(--field);
+    border: 1px solid var(--border-strong);
+    border-radius: 6px;
+    padding: 7px 9px;
     width: 100%;
   }
+  input:focus, select:focus { outline: 2px solid var(--accent); outline-offset: -1px; }
   button { cursor: pointer; width: auto; }
+  button:hover { border-color: var(--accent); }
   button.primary { background: var(--accent); color: #000; border-color: var(--accent); font-weight: 600; }
+  .search { display: flex; gap: 6px; }
+  .search button { flex: none; }
   .meta { font-size: 13px; color: var(--dim); margin-top: 6px; }
-  .results { margin-top: 6px; display: grid; gap: 4px; }
-  .results button { text-align: left; width: 100%; }
-  .actions { display: flex; gap: 8px; justify-content: flex-end; align-items: center; }
-  #message { flex: 1; color: var(--dim); }
-  #message.error { color: var(--error); }
+  .results { margin-top: 6px; display: grid; gap: 4px; font-size: 13px; color: var(--dim); }
+  .results button { text-align: left; width: 100%; color: var(--text); }
+  .choice { display: inline-flex; border: 1px solid var(--border-strong); border-radius: 6px; overflow: hidden; }
+  .choice label { margin: 0; }
+  .choice input { position: absolute; opacity: 0; width: 1px; }
+  .choice span { display: block; padding: 7px 14px; cursor: pointer; color: var(--dim); font-size: 14px; }
+  .choice input:checked + span { background: var(--accent); color: #000; font-weight: 600; }
+  .choice input:focus-visible + span { outline: 2px solid var(--accent); outline-offset: -2px; }
+  .hint { font-size: 13px; color: var(--dim); margin: 0; }
+  .actions {
+    display: flex;
+    gap: 8px;
+    justify-content: flex-end;
+    align-items: center;
+    padding: 12px 16px;
+    border-top: 1px solid var(--border);
+  }
+  .message { flex: 1; color: var(--dim); font-size: 14px; }
+  .message.error { color: var(--error); }
+  .message.ok { color: var(--ok); }
+  @media (max-width: 480px) {
+    .item { grid-template-columns: 1fr; gap: 6px; }
+    .slot { justify-self: start; margin-top: 0; }
+  }
 </style>
 </head>
 <body>
+<div class="wrap">
 <header>
   <h1>TimeBuddy</h1>
   <button id="gear" aria-label="Setup" aria-expanded="false" title="Setup">
@@ -92,38 +164,94 @@
   </button>
 </header>
 
+<div id="setup-banner" class="banner" hidden></div>
+
 <canvas id="screen"></canvas>
 
-<form id="setup" hidden>
-  <div id="locations"></div>
-  <div class="card">
-    <h2>Right side</h2>
-    <div class="row">
-      <div><label for="pane0">Top</label><select id="pane0"></select></div>
-      <div><label for="pane1">Bottom</label><select id="pane1"></select></div>
-    </div>
-  </div>
-  <div class="actions">
-    <span id="message"></span>
-    <button type="button" id="cancel">Cancel</button>
-    <button type="submit" class="primary">Save</button>
-  </div>
-</form>
+<div id="setup" hidden>
+  <form id="display">
+    <section>
+      <div class="head">
+        <span class="icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg></span>
+        <div><h2>Clocks</h2><p>The three locations on the left, top to bottom</p></div>
+      </div>
+      <div class="body" id="locations"></div>
+    </section>
 
-<template id="location-card">
-  <div class="card">
-    <h2></h2>
-    <div class="row">
-      <div><label>Label on screen</label><input name="name" maxlength="31" required></div>
-      <div><label>Search for a place</label>
-        <div class="row" style="flex-wrap: nowrap">
-          <input name="query" placeholder="e.g. Cape Town">
-          <button type="button" name="find" style="flex: 0 0 auto">Find</button>
+    <section style="margin-top: 20px">
+      <div class="head">
+        <span class="icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M12 3v18M12 12h9"/></svg></span>
+        <div><h2>Right side</h2><p>Which box shows in each half (landscape only)</p></div>
+      </div>
+      <div class="body">
+        <div class="item">
+          <span class="slot">Top</span>
+          <div><label for="pane0">Shows</label><select id="pane0"></select></div>
+        </div>
+        <div class="item">
+          <span class="slot">Bottom</span>
+          <div><label for="pane1">Shows</label><select id="pane1"></select></div>
         </div>
       </div>
+      <div class="actions">
+        <span class="message" id="display-message"></span>
+        <button type="button" id="cancel">Cancel</button>
+        <button type="submit" class="primary">Save display</button>
+      </div>
+    </section>
+  </form>
+
+  <form id="network">
+    <section>
+      <div class="head">
+        <span class="icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M2 9a15 15 0 0 1 20 0M5 12.5a10 10 0 0 1 14 0M8.5 16a5 5 0 0 1 7 0"/><circle cx="12" cy="19.5" r="1" fill="currentColor"/></svg></span>
+        <div><h2>Network</h2><p>Wi-Fi and IP address. Saving restarts TimeBuddy.</p></div>
+      </div>
+      <div class="body">
+        <div class="grid">
+          <div><label for="ssid">Wi-Fi name (SSID)</label><input id="ssid" maxlength="32" required autocomplete="off"></div>
+          <div><label for="password">Password</label><input id="password" type="password" maxlength="64" autocomplete="new-password"></div>
+        </div>
+        <div>
+          <label>IP address</label>
+          <div class="choice" role="radiogroup">
+            <label><input type="radio" name="mode" value="dhcp"><span>Automatic (DHCP)</span></label>
+            <label><input type="radio" name="mode" value="static"><span>Static</span></label>
+          </div>
+        </div>
+        <div class="grid" id="static-fields">
+          <div><label for="ip">IP address</label><input id="ip" placeholder="192.168.1.50" inputmode="decimal"></div>
+          <div><label for="gateway">Gateway</label><input id="gateway" placeholder="192.168.1.1" inputmode="decimal"></div>
+          <div><label for="subnet">Subnet mask</label><input id="subnet" placeholder="255.255.255.0" inputmode="decimal"></div>
+          <div><label for="dns">DNS (optional)</label><input id="dns" placeholder="Same as gateway" inputmode="decimal"></div>
+        </div>
+        <p class="hint" id="network-hint"></p>
+      </div>
+      <div class="actions">
+        <span class="message" id="network-message"></span>
+        <button type="submit" class="primary">Save and restart</button>
+      </div>
+    </section>
+  </form>
+</div>
+</div>
+
+<template id="location-item">
+  <div class="item">
+    <span class="slot"></span>
+    <div>
+      <div class="grid">
+        <div><label>Label on screen</label><input name="name" maxlength="31" required></div>
+        <div><label>Change place</label>
+          <div class="search">
+            <input name="query" placeholder="Search, e.g. Cape Town">
+            <button type="button" name="find">Find</button>
+          </div>
+        </div>
+      </div>
+      <div class="meta"></div>
+      <div class="results"></div>
     </div>
-    <div class="meta"></div>
-    <div class="results"></div>
   </div>
 </template>
 
@@ -372,11 +500,14 @@ async function refresh() {
 
 const setup = document.getElementById("setup");
 const gear = document.getElementById("gear");
-const message = document.getElementById("message");
+const displayForm = document.getElementById("display");
+const networkForm = document.getElementById("network");
+let polling = null;
 
-function say(msg, error) {
-  message.textContent = msg;
-  message.classList.toggle("error", !!error);
+function say(id, msg, kind) {
+  const el = document.getElementById(id);
+  el.textContent = msg;
+  el.className = "message" + (kind ? " " + kind : "");
 }
 
 function metaText(loc) {
@@ -389,15 +520,17 @@ async function loadZones() {
   return zones;
 }
 
-async function search(card, i) {
-  const q = card.querySelector("[name=query]").value.trim();
-  const results = card.querySelector(".results");
+async function search(item, i) {
+  const q = item.querySelector("[name=query]").value.trim();
+  const results = item.querySelector(".results");
   results.replaceChildren();
   if (!q) return;
+  results.textContent = "Searching...";
   try {
     const url = "https://geocoding-api.open-meteo.com/v1/search?count=5&language=en&format=json&name=" + encodeURIComponent(q);
     const [data, table] = await Promise.all([fetch(url).then(r => r.json()), loadZones()]);
     const found = (data.results || []).filter(r => table[r.timezone]);
+    results.replaceChildren();
     if (!found.length) {
       results.textContent = "No matches";
       return;
@@ -411,40 +544,39 @@ async function search(card, i) {
           name: r.name.slice(0, 31), country: r.country || "", zone: r.timezone,
           tz: table[r.timezone], lat: r.latitude, lon: r.longitude,
         };
-        card.querySelector("[name=name]").value = draft.locations[i].name;
-        card.querySelector(".meta").textContent = metaText(draft.locations[i]);
+        item.querySelector("[name=name]").value = draft.locations[i].name;
+        item.querySelector(".meta").textContent = metaText(draft.locations[i]);
+        item.querySelector("[name=query]").value = "";
         results.replaceChildren();
         draw();
       };
       results.append(b);
     }
   } catch (e) {
-    results.textContent = "Search failed";
+    results.textContent = state.setupMode ? "Search needs internet; join your Wi-Fi first" : "Search failed";
   }
 }
 
-function openSetup() {
+function fillDisplay() {
   draft = structuredClone(state.config);
   const list = document.getElementById("locations");
   list.replaceChildren();
-  list.style.display = "grid";
-  list.style.gap = "12px";
   draft.locations.forEach((loc, i) => {
-    const card = document.getElementById("location-card").content.firstElementChild.cloneNode(true);
-    card.querySelector("h2").textContent = SLOTS[i];
-    const name = card.querySelector("[name=name]");
+    const item = document.getElementById("location-item").content.firstElementChild.cloneNode(true);
+    item.querySelector(".slot").textContent = SLOTS[i];
+    const name = item.querySelector("[name=name]");
     name.value = loc.name;
     name.oninput = () => { draft.locations[i].name = name.value; draw(); };
-    card.querySelector(".meta").textContent = metaText(loc);
-    const query = card.querySelector("[name=query]");
-    card.querySelector("[name=find]").onclick = () => search(card, i);
+    item.querySelector(".meta").textContent = metaText(loc);
+    const query = item.querySelector("[name=query]");
+    item.querySelector("[name=find]").onclick = () => search(item, i);
     query.onkeydown = e => {
       if (e.key === "Enter") {
         e.preventDefault();
-        search(card, i);
+        search(item, i);
       }
     };
-    list.append(card);
+    list.append(item);
   });
   for (let p = 0; p < 2; p++) {
     const select = document.getElementById("pane" + p);
@@ -452,7 +584,35 @@ function openSetup() {
     select.value = draft.panes[p];
     select.onchange = () => { draft.panes[p] = select.value; draw(); };
   }
-  say("");
+  say("display-message", "");
+}
+
+function showStaticFields() {
+  const isStatic = networkForm.elements.mode.value === "static";
+  document.getElementById("static-fields").hidden = !isStatic;
+  for (const id of ["ip", "gateway", "subnet"]) document.getElementById(id).required = isStatic;
+}
+
+function fillNetwork() {
+  const n = state.network;
+  document.getElementById("ssid").value = n.ssid;
+  const password = document.getElementById("password");
+  password.value = "";
+  password.placeholder = n.hasPassword ? "Unchanged" : "None";
+  networkForm.elements.mode.value = n.dhcp ? "dhcp" : "static";
+  for (const id of ["ip", "gateway", "subnet", "dns"]) document.getElementById(id).value = n[id];
+  if (n.dhcp && !state.setupMode) {
+    for (const id of ["ip", "gateway", "subnet", "dns"]) document.getElementById(id).value = n.current[id];
+  }
+  showStaticFields();
+  document.getElementById("network-hint").textContent =
+    `If TimeBuddy can't join the network, it starts its own Wi-Fi called "${state.setupSsid}" so you can fix the settings from a phone.`;
+  say("network-message", "");
+}
+
+function openSetup() {
+  fillDisplay();
+  fillNetwork();
   setup.hidden = false;
   gear.setAttribute("aria-expanded", "true");
 }
@@ -464,29 +624,85 @@ function closeSetup() {
   draw();
 }
 
+function applySetupMode() {
+  const banner = document.getElementById("setup-banner");
+  banner.hidden = !state.setupMode;
+  canvas.hidden = state.setupMode;
+  gear.hidden = state.setupMode;
+  document.getElementById("cancel").hidden = state.setupMode;
+  if (state.setupMode) {
+    banner.textContent = `TimeBuddy couldn't join "${state.network.ssid}". Check the network settings below and save; it will restart and try again.`;
+    if (setup.hidden) openSetup();
+  }
+}
+
 gear.onclick = () => (setup.hidden ? openSetup() : closeSetup());
 document.getElementById("cancel").onclick = closeSetup;
+for (const r of networkForm.elements.mode) r.onchange = showStaticFields;
 
-setup.onsubmit = async e => {
+async function post(url, body) {
+  const res = await fetch(url, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || res.status);
+}
+
+displayForm.onsubmit = async e => {
   e.preventDefault();
-  say("Saving...");
+  say("display-message", "Saving...");
   try {
-    const res = await fetch("/api/config", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(draft),
-    });
-    if (!res.ok) throw new Error((await res.json()).error || res.status);
+    await post("/api/config", draft);
+    if (state.setupMode) {
+      say("display-message", "Saved", "ok");
+      return;
+    }
     closeSetup();
     await refresh();
     setTimeout(refresh, 8000);
   } catch (err) {
-    say("Save failed: " + err.message, true);
+    say("display-message", "Save failed: " + err.message, "error");
   }
 };
 
-refresh();
-setInterval(refresh, 20000);
+networkForm.onsubmit = async e => {
+  e.preventDefault();
+  const dhcp = networkForm.elements.mode.value === "dhcp";
+  const body = {
+    ssid: document.getElementById("ssid").value.trim(),
+    password: document.getElementById("password").value,
+    dhcp,
+  };
+  for (const id of ["ip", "gateway", "subnet", "dns"]) body[id] = document.getElementById(id).value.trim();
+  const ipPattern = /^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/;
+  const validIp = v => ipPattern.test(v) && v.split(".").every(x => +x <= 255);
+  if (!dhcp) {
+    const bad = ["ip", "gateway", "subnet"].find(id => !validIp(body[id])) || (body.dns && !validIp(body.dns) && "dns");
+    if (bad) {
+      say("network-message", "Check the " + document.querySelector(`label[for=${bad}]`).textContent, "error");
+      document.getElementById(bad).focus();
+      return;
+    }
+  }
+  say("network-message", "Saving...");
+  try {
+    await post("/api/network", body);
+    clearInterval(polling);
+    const where = dhcp ? "http://timebuddy.local" : `http://${body.ip} or http://timebuddy.local`;
+    say("network-message", `Saved. TimeBuddy is restarting and joining "${body.ssid}". Reconnect to that network, then open ${where}.`, "ok");
+  } catch (err) {
+    say("network-message", "Save failed: " + err.message, "error");
+  }
+};
+
+async function start() {
+  await refresh();
+  if (state) applySetupMode();
+  polling = setInterval(refresh, 20000);
+}
+
+start();
 </script>
 </body>
 </html>

@@ -8,10 +8,17 @@ Open `http://timebuddy.local` in a browser on the same network. If that doesn't 
 
 The page shows a live copy of the screen. Click the gear to change:
 
-- the top, middle and bottom locations: search for a place, pick it from the list, and edit the label if needed
-- which pane goes in the top right and bottom right
+- **Clocks**: the top, middle and bottom locations. Search for a place, pick it from the list, and edit the label if needed.
+- **Right side**: which pane goes in the top right and bottom right.
+- **Network**: Wi-Fi name and password, and either an automatic (DHCP) or static IP address. Leave the password empty to keep the current one. Saving restarts TimeBuddy.
 
-The preview updates as you change things. Press Save to apply them. Settings are stored on the device and kept after power-off.
+The preview updates as you change things. Press Save display to apply the clocks and panes. Settings are stored on the device and kept after power-off.
+
+### If TimeBuddy can't join the Wi-Fi
+
+If it can't connect within 30 seconds of starting, TimeBuddy starts its own open Wi-Fi network called `TimeBuddy-Setup` and shows it on the screen. Join it from a phone or laptop and open `http://192.168.4.1` (most phones open it automatically). Fix the network settings and press Save and restart.
+
+If no one uses the setup page for 5 minutes, TimeBuddy restarts and tries the saved Wi-Fi again, so it recovers by itself when the router was just slow to come back after a power cut.
 
 ## Default locations
 
@@ -117,7 +124,7 @@ These pins match `firmware/include/config.h`.
 ### 4. Flash and power
 
 1. Install [PlatformIO](https://platformio.org/install) (VS Code extension or `pip install platformio`).
-2. Copy `firmware/include/secrets.example.h` to `firmware/include/secrets.h` and put in your WiFi name and password.
+2. Copy `firmware/include/secrets.example.h` to `firmware/include/secrets.h` and put in your WiFi name and password (used until changed on the setup page).
    Copy `firmware/include/locations.example.h` to `firmware/include/locations.h` and set your three default locations.
 3. Plug the ESP32 into your computer with USB-C and run:
    ```

@@ -1,6 +1,7 @@
 #include <Arduino.h>
 #include <ArduinoJson.h>
 #include <Arduino_GFX_Library.h>
+#include <DNSServer.h>
 #include <ESPmDNS.h>
 #include <HTTPClient.h>
 #include <Preferences.h>
@@ -48,6 +49,7 @@ Arduino_GFX *gfx = new Arduino_ILI9486(bus, PIN_RST, PORTRAIT_ROTATION);
 Arduino_Canvas *canvas = nullptr;
 Preferences prefs;
 WebServer server(80);
+DNSServer dns;
 
 struct Layout {
   int title, date, icon, temp;
@@ -107,6 +109,21 @@ struct Place {
 static Place places[3];
 static int panes[2] = {0, 1};
 static bool configChanged = false;
+
+struct NetSettings {
+  char ssid[33];
+  char password[65];
+  bool dhcp;
+  char ip[16];
+  char gateway[16];
+  char subnet[16];
+  char dns[16];
+};
+
+static NetSettings net;
+static bool setupMode = false;
+static unsigned long lastWebActivity = 0;
+static unsigned long restartAt = 0;
 static unsigned long lastMotoGPFetch = 0;
 static unsigned long lastF1Fetch = 0;
 static bool motogpFetched = false;
@@ -238,7 +255,7 @@ static void drawWeather(Arduino_GFX *g, const Weather &w, int x, int iconY, int 
   g->print("C");
 }
 
-static void showStatus(const char *line1, const char *line2) {
+static void showStatus(const char *line1, const char *line2, const char *line3 = nullptr) {
   gfx->fillScreen(COL_BG);
   gfx->setFont(&FreeSans12pt7b);
   gfx->setTextColor(COL_TEXT);
@@ -248,6 +265,10 @@ static void showStatus(const char *line1, const char *line2) {
   gfx->setTextColor(COL_DIM);
   gfx->setCursor(30, 175);
   gfx->print(line2);
+  if (line3) {
+    gfx->setCursor(30, 200);
+    gfx->print(line3);
+  }
 }
 
 static void localTimeFor(const Place &loc, time_t now, struct tm *out);
@@ -707,8 +728,8 @@ static void configToJson(JsonObject cfg) {
 
 static void loadConfig() {
   loadDefaults();
+  if (!prefs.isKey("config")) return;
   String saved = prefs.getString("config", "");
-  if (saved.isEmpty()) return;
   JsonDocument doc;
   if (deserializeJson(doc, saved) || !applyConfig(doc.as<JsonObjectConst>())) {
     Serial.println("Saved config invalid, using defaults");
@@ -724,6 +745,67 @@ static void saveConfig() {
   prefs.putString("config", out);
 }
 
+static void loadNetwork() {
+  strlcpy(net.ssid, WIFI_SSID, sizeof(net.ssid));
+  strlcpy(net.password, WIFI_PASSWORD, sizeof(net.password));
+  net.dhcp = true;
+  net.ip[0] = net.gateway[0] = net.subnet[0] = net.dns[0] = '\0';
+
+  if (!prefs.isKey("network")) return;
+  String saved = prefs.getString("network", "");
+  JsonDocument doc;
+  if (deserializeJson(doc, saved)) return;
+  strlcpy(net.ssid, doc["ssid"] | net.ssid, sizeof(net.ssid));
+  strlcpy(net.password, doc["password"] | net.password, sizeof(net.password));
+  net.dhcp = doc["dhcp"] | true;
+  strlcpy(net.ip, doc["ip"] | "", sizeof(net.ip));
+  strlcpy(net.gateway, doc["gateway"] | "", sizeof(net.gateway));
+  strlcpy(net.subnet, doc["subnet"] | "", sizeof(net.subnet));
+  strlcpy(net.dns, doc["dns"] | "", sizeof(net.dns));
+}
+
+static void saveNetwork() {
+  JsonDocument doc;
+  doc["ssid"] = net.ssid;
+  doc["password"] = net.password;
+  doc["dhcp"] = net.dhcp;
+  doc["ip"] = net.ip;
+  doc["gateway"] = net.gateway;
+  doc["subnet"] = net.subnet;
+  doc["dns"] = net.dns;
+  String out;
+  serializeJson(doc, out);
+  prefs.putString("network", out);
+}
+
+static bool validIp(const char *s) {
+  IPAddress ip;
+  return ip.fromString(s);
+}
+
+static bool applyNetwork(JsonObjectConst n) {
+  NetSettings next = net;
+  const char *ssid = n["ssid"] | "";
+  if (!*ssid || strlen(ssid) >= sizeof(next.ssid)) return false;
+  strlcpy(next.ssid, ssid, sizeof(next.ssid));
+  const char *password = n["password"] | "";
+  if (strlen(password) >= sizeof(next.password)) return false;
+  if (*password || n["clearPassword"] == true) {
+    strlcpy(next.password, password, sizeof(next.password));
+  }
+  next.dhcp = n["dhcp"] | true;
+  strlcpy(next.ip, n["ip"] | "", sizeof(next.ip));
+  strlcpy(next.gateway, n["gateway"] | "", sizeof(next.gateway));
+  strlcpy(next.subnet, n["subnet"] | "", sizeof(next.subnet));
+  strlcpy(next.dns, n["dns"] | "", sizeof(next.dns));
+  if (!next.dhcp) {
+    if (!validIp(next.ip) || !validIp(next.gateway) || !validIp(next.subnet)) return false;
+    if (*next.dns && !validIp(next.dns)) return false;
+  }
+  net = next;
+  return true;
+}
+
 static void weatherToJson(JsonObject out, const Weather &w) {
   out["temp"] = w.temp;
   out["code"] = w.code;
@@ -737,8 +819,25 @@ static void sendGzip(const char *type, const uint8_t *data, size_t len) {
 }
 
 static void handleState() {
+  lastWebActivity = millis();
   JsonDocument doc;
   doc["landscape"] = landscape;
+  doc["setupMode"] = setupMode;
+  doc["setupSsid"] = SETUP_AP_SSID;
+  JsonObject n = doc["network"].to<JsonObject>();
+  n["ssid"] = net.ssid;
+  n["hasPassword"] = net.password[0] != '\0';
+  n["dhcp"] = net.dhcp;
+  n["ip"] = net.ip;
+  n["gateway"] = net.gateway;
+  n["subnet"] = net.subnet;
+  n["dns"] = net.dns;
+  n["address"] = (setupMode ? WiFi.softAPIP() : WiFi.localIP()).toString();
+  JsonObject current = n["current"].to<JsonObject>();
+  current["ip"] = WiFi.localIP().toString();
+  current["gateway"] = WiFi.gatewayIP().toString();
+  current["subnet"] = WiFi.subnetMask().toString();
+  current["dns"] = WiFi.dnsIP().toString();
   configToJson(doc["config"].to<JsonObject>());
 
   JsonArray types = doc["paneTypes"].to<JsonArray>();
@@ -802,26 +901,68 @@ static void handleSaveConfig() {
   server.send(200, "application/json", "{}");
 }
 
+static void handleSaveNetwork() {
+  lastWebActivity = millis();
+  JsonDocument doc;
+  if (deserializeJson(doc, server.arg("plain")) || !applyNetwork(doc.as<JsonObjectConst>())) {
+    server.send(400, "application/json", "{\"error\":\"invalid network settings\"}");
+    return;
+  }
+  saveNetwork();
+  server.send(200, "application/json", "{}");
+  restartAt = millis() + 1500;
+}
+
 static void startWebServer() {
   server.on("/", HTTP_GET, [] { sendGzip("text/html", WEB_INDEX, WEB_INDEX_LEN); });
   server.on("/zones.json", HTTP_GET, [] { sendGzip("application/json", WEB_ZONES, WEB_ZONES_LEN); });
   server.on("/api/state", HTTP_GET, handleState);
   server.on("/api/config", HTTP_POST, handleSaveConfig);
+  server.on("/api/network", HTTP_POST, handleSaveNetwork);
+  server.onNotFound([] {
+    if (setupMode) {
+      server.sendHeader("Location", "http://" + WiFi.softAPIP().toString() + "/");
+      server.send(302, "text/plain", "");
+    } else {
+      server.send(404, "text/plain", "Not found");
+    }
+  });
   server.begin();
   if (MDNS.begin(WEB_HOSTNAME)) {
     MDNS.addService("http", "tcp", 80);
   }
 }
 
-static void connectWiFi() {
+static void connectWiFi(unsigned long timeoutMs = 20000) {
   if (WiFi.status() == WL_CONNECTED) return;
   WiFi.mode(WIFI_STA);
-  WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
+  if (!net.dhcp) {
+    IPAddress ip, gateway, subnet, dnsIp;
+    ip.fromString(net.ip);
+    gateway.fromString(net.gateway);
+    subnet.fromString(net.subnet);
+    if (!dnsIp.fromString(net.dns)) dnsIp = gateway;
+    WiFi.config(ip, gateway, subnet, dnsIp);
+  }
+  WiFi.begin(net.ssid, net.password);
   WiFi.setTxPower(WIFI_POWER_8_5dBm);
   unsigned long start = millis();
-  while (WiFi.status() != WL_CONNECTED && millis() - start < 20000) {
+  while (WiFi.status() != WL_CONNECTED && millis() - start < timeoutMs) {
     delay(250);
   }
+}
+
+static void startSetupMode() {
+  setupMode = true;
+  WiFi.disconnect(true);
+  WiFi.mode(WIFI_AP);
+  WiFi.softAP(SETUP_AP_SSID);
+  dns.start(53, "*", WiFi.softAPIP());
+  startWebServer();
+  lastWebActivity = millis();
+  String address = "then open http://" + WiFi.softAPIP().toString();
+  Serial.println("Setup mode: " SETUP_AP_SSID);
+  showStatus("Wi-Fi setup", "Join Wi-Fi network " SETUP_AP_SSID, address.c_str());
 }
 
 void setup() {
@@ -830,6 +971,7 @@ void setup() {
   prefs.begin("timebuddy");
   landscape = prefs.getBool("landscape", false);
   loadConfig();
+  loadNetwork();
 
   if (!gfx->begin()) {
     Serial.println("Display init failed");
@@ -837,14 +979,11 @@ void setup() {
   gfx->invertDisplay(DISPLAY_INVERT);
   applyOrientation();
 
-  showStatus("TimeBuddy", "Connecting to " WIFI_SSID "...");
-  connectWiFi();
+  showStatus("TimeBuddy", (String("Connecting to ") + net.ssid + "...").c_str());
+  connectWiFi(WIFI_CONNECT_TIMEOUT_MS);
   if (WiFi.status() != WL_CONNECTED) {
-    showStatus("No WiFi", "Check WIFI_SSID / WIFI_PASSWORD");
-    while (WiFi.status() != WL_CONNECTED) {
-      delay(5000);
-      connectWiFi();
-    }
+    startSetupMode();
+    return;
   }
 
   startWebServer();
@@ -861,6 +1000,19 @@ void setup() {
 }
 
 void loop() {
+  if (restartAt && (long)(millis() - restartAt) >= 0) {
+    ESP.restart();
+  }
+  if (setupMode) {
+    dns.processNextRequest();
+    server.handleClient();
+    if (millis() - lastWebActivity >= SETUP_MODE_TIMEOUT_MS) {
+      ESP.restart();
+    }
+    delay(5);
+    return;
+  }
+
   if (WiFi.status() != WL_CONNECTED) {
     connectWiFi();
   }

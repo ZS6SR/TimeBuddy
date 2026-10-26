@@ -37,6 +37,13 @@
 // Setup page is at http://timebuddy.local (or the IP shown at startup).
 #define WEB_HOSTNAME "timebuddy"
 
+// If the saved Wi-Fi can't be joined within this time, TimeBuddy starts its own
+// open Wi-Fi network with the setup page, and restarts to try again after
+// SETUP_MODE_TIMEOUT_MS with no one using the page (e.g. after a power cut).
+#define WIFI_CONNECT_TIMEOUT_MS (30UL * 1000UL)
+#define SETUP_AP_SSID "TimeBuddy-Setup"
+#define SETUP_MODE_TIMEOUT_MS (5UL * 60UL * 1000UL)
+
 // Default locations, used until changed on the setup page.
 
 struct Location {
