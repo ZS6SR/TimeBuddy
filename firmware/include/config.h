@@ -31,8 +31,13 @@
 #define RACE_REFRESH_MS (6UL * 60UL * 60UL * 1000UL)
 #define RACE_RETRY_MS (5UL * 60UL * 1000UL)
 
-// Race times are shown in this location's time zone (index into LOCATIONS).
+// Race times are shown in this location's time zone (0 = top, 1 = middle, 2 = bottom).
 #define RACE_TIME_LOCATION 1
+
+// Setup page is at http://timebuddy.local (or the IP shown at startup).
+#define WEB_HOSTNAME "timebuddy"
+
+// Default locations, used until changed on the setup page.
 
 struct Location {
   const char *name;

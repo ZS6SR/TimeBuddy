@@ -2,9 +2,20 @@
 
 A small desk display showing the current time and temperature in three locations.
 
-## Locations
+## Setup page
 
-The three locations are set in `firmware/include/locations.h` (not stored in the repository). Copy `locations.example.h` to `locations.h` and set, for each location:
+Open `http://timebuddy.local` in a browser on the same network. If that doesn't load, use the address shown on the screen while it says "Syncing time…" (also printed on the serial monitor).
+
+The page shows a live copy of the screen. Click the gear to change:
+
+- the top, middle and bottom locations: search for a place, pick it from the list, and edit the label if needed
+- which pane goes in the top right and bottom right
+
+The preview updates as you change things. Press Save to apply them. Settings are stored on the device and kept after power-off.
+
+## Default locations
+
+The locations used until you change them on the setup page are set in `firmware/include/locations.h` (not stored in the repository). Copy `locations.example.h` to `locations.h` and set, for each location:
 
 - the label shown on screen
 - latitude and longitude, used for the weather
@@ -14,7 +25,7 @@ The three locations are set in `firmware/include/locations.h` (not stored in the
 
 Each clock row shows the location label, the local time and date, and the current weather (icon and temperature in °C).
 
-In landscape the clocks take the left 40% of the screen. The right side has two panes:
+In landscape the clocks take the left 40% of the screen. The right side has two panes, chosen on the setup page:
 
 | Pane | Shows |
 |---|---|
@@ -28,7 +39,7 @@ Each pane shows:
 - the circuit location
 - the race weekend dates (first practice to race day) and the race start time
 
-Dates and times are shown in the time zone of the location set by `RACE_TIME_LOCATION` in `firmware/include/config.h` (an index into `LOCATIONS`). Race data is refreshed every 6 hours. Sources: the MotoGP calendar API, the [Jolpica F1 API](https://github.com/jolpica/jolpica-f1) and [Open-Meteo](https://open-meteo.com/) for the forecast.
+Dates and times are shown in the time zone of the location set by `RACE_TIME_LOCATION` in `firmware/include/config.h` (0 = top, 1 = middle, 2 = bottom). Race data is refreshed every 6 hours. Sources: the MotoGP calendar API, the [Jolpica F1 API](https://github.com/jolpica/jolpica-f1) and [Open-Meteo](https://open-meteo.com/) for the forecast.
 
 Portrait shows the clocks only.
 
@@ -107,7 +118,7 @@ These pins match `firmware/include/config.h`.
 
 1. Install [PlatformIO](https://platformio.org/install) (VS Code extension or `pip install platformio`).
 2. Copy `firmware/include/secrets.example.h` to `firmware/include/secrets.h` and put in your WiFi name and password.
-   Copy `firmware/include/locations.example.h` to `firmware/include/locations.h` and set your three locations.
+   Copy `firmware/include/locations.example.h` to `firmware/include/locations.h` and set your three default locations.
 3. Plug the ESP32 into your computer with USB-C and run:
    ```
    cd firmware
@@ -116,7 +127,7 @@ These pins match `firmware/include/config.h`.
    If the upload doesn't start, hold the ESP32's `BOOT` button while plugging it in, then try again.
 4. Unplug it and power it from any USB charger.
 
-The screen shows "Connecting…", then "Syncing time…", then the three clocks. Temperatures update every 10 minutes.
+The screen shows "Connecting…", then "Syncing time…" with the setup page address, then the three clocks. Temperatures update every 10 minutes.
 
 ### 5. Switch between portrait and landscape
 
@@ -151,3 +162,7 @@ MotoGP outlines come from the MotoGP calendar, F1 outlines from [bacinger/f1-cir
 pip install trimesh manifold3d numpy
 python case/make_case.py
 ```
+
+## Setup page files
+
+The setup page is `firmware/web/index.html`. `firmware/web/zones.json` maps time zone names to POSIX TZ strings and comes from [posix_tz_db](https://github.com/nayarsystems/posix_tz_db) (MIT licence); download a fresh copy if a country changes its daylight saving rules. Both are gzipped into `firmware/include/web.h` by `firmware/make_web.py` on every build.

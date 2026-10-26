@@ -1,0 +1,492 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>TimeBuddy</title>
+<style>
+  :root {
+    --bg: #0a0e18;
+    --panel: #141a28;
+    --text: #ebf0f8;
+    --dim: #8c9bb4;
+    --accent: #78b4ff;
+    --border: #46556e;
+    --error: #ff6b6b;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    padding: 16px;
+    background: var(--bg);
+    color: var(--text);
+    font: 15px/1.4 Helvetica, Arial, sans-serif;
+  }
+  header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    max-width: 720px;
+    margin: 0 auto 12px;
+  }
+  h1 { font-size: 20px; margin: 0; font-weight: 600; }
+  h2 { font-size: 15px; margin: 0 0 8px; color: var(--accent); font-weight: 600; }
+  #gear {
+    background: none;
+    border: 0;
+    color: var(--dim);
+    cursor: pointer;
+    padding: 6px;
+    line-height: 0;
+  }
+  #gear:hover, #gear[aria-expanded="true"] { color: var(--text); }
+  #screen {
+    display: block;
+    margin: 0 auto;
+    max-width: 720px;
+    width: 100%;
+    border: 6px solid #000;
+    border-radius: 6px;
+  }
+  #screen.portrait { max-width: 320px; }
+  #setup {
+    max-width: 720px;
+    margin: 16px auto 0;
+    display: grid;
+    gap: 12px;
+  }
+  #setup[hidden] { display: none; }
+  .card {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 12px;
+  }
+  .row { display: flex; gap: 8px; flex-wrap: wrap; }
+  .row > * { flex: 1 1 140px; min-width: 0; }
+  label { display: block; font-size: 13px; color: var(--dim); margin-bottom: 4px; }
+  input, select, button {
+    font: inherit;
+    color: var(--text);
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 6px 8px;
+    width: 100%;
+  }
+  button { cursor: pointer; width: auto; }
+  button.primary { background: var(--accent); color: #000; border-color: var(--accent); font-weight: 600; }
+  .meta { font-size: 13px; color: var(--dim); margin-top: 6px; }
+  .results { margin-top: 6px; display: grid; gap: 4px; }
+  .results button { text-align: left; width: 100%; }
+  .actions { display: flex; gap: 8px; justify-content: flex-end; align-items: center; }
+  #message { flex: 1; color: var(--dim); }
+  #message.error { color: var(--error); }
+</style>
+</head>
+<body>
+<header>
+  <h1>TimeBuddy</h1>
+  <button id="gear" aria-label="Setup" aria-expanded="false" title="Setup">
+    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+  </button>
+</header>
+
+<canvas id="screen"></canvas>
+
+<form id="setup" hidden>
+  <div id="locations"></div>
+  <div class="card">
+    <h2>Right side</h2>
+    <div class="row">
+      <div><label for="pane0">Top</label><select id="pane0"></select></div>
+      <div><label for="pane1">Bottom</label><select id="pane1"></select></div>
+    </div>
+  </div>
+  <div class="actions">
+    <span id="message"></span>
+    <button type="button" id="cancel">Cancel</button>
+    <button type="submit" class="primary">Save</button>
+  </div>
+</form>
+
+<template id="location-card">
+  <div class="card">
+    <h2></h2>
+    <div class="row">
+      <div><label>Label on screen</label><input name="name" maxlength="31" required></div>
+      <div><label>Search for a place</label>
+        <div class="row" style="flex-wrap: nowrap">
+          <input name="query" placeholder="e.g. Cape Town">
+          <button type="button" name="find" style="flex: 0 0 auto">Find</button>
+        </div>
+      </div>
+    </div>
+    <div class="meta"></div>
+    <div class="results"></div>
+  </div>
+</template>
+
+<script>
+const COL = {
+  bg: "rgb(10,14,24)", text: "rgb(235,240,248)", name: "rgb(120,180,255)", dim: "rgb(140,155,180)",
+  temp: "rgb(255,190,90)", line: "rgb(45,55,75)", border: "rgb(70,85,110)", race: "rgb(230,40,40)",
+  sun: "rgb(255,200,40)", moon: "rgb(220,225,240)", cloud: "rgb(200,208,220)", darkCloud: "rgb(120,130,150)",
+  rain: "rgb(80,160,255)", snow: "rgb(255,255,255)",
+};
+const FONT_9 = "17.6px Helvetica, Arial, sans-serif";
+const FONT_12 = "23.5px Helvetica, Arial, sans-serif";
+const FONT_16 = "31.3px Helvetica, Arial, sans-serif";
+const FONT_TITLE = "italic bold 23.5px Helvetica, Arial, sans-serif";
+const PAD = 14;
+const LAYOUTS = {
+  portrait: { title: 50, date: 76, icon: 110, temp: 124 },
+  landscape: { title: 38, date: 58, icon: 76, temp: 90 },
+};
+const TRACK_W = 72, TRACK_H = 54;
+const SLOTS = ["Top", "Middle", "Bottom"];
+
+const canvas = document.getElementById("screen");
+const ctx = canvas.getContext("2d");
+let state = null;
+let zones = null;
+let draft = null;
+
+const sc = v => Math.round(v * 0.75);
+
+function fillCircle(x, y, r, colour) {
+  ctx.fillStyle = colour;
+  ctx.beginPath();
+  ctx.arc(x + 0.5, y + 0.5, r + 0.5, 0, Math.PI * 2);
+  ctx.fill();
+}
+
+function line(x0, y0, x1, y1, colour) {
+  ctx.strokeStyle = colour;
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.moveTo(x0 + 0.5, y0 + 0.5);
+  ctx.lineTo(x1 + 0.5, y1 + 0.5);
+  ctx.stroke();
+}
+
+function roundRect(x, y, w, h, r, colour) {
+  ctx.fillStyle = colour;
+  ctx.beginPath();
+  ctx.roundRect(x, y, w, h, r);
+  ctx.fill();
+}
+
+function triangle(points, colour) {
+  ctx.fillStyle = colour;
+  ctx.beginPath();
+  ctx.moveTo(points[0], points[1]);
+  ctx.lineTo(points[2], points[3]);
+  ctx.lineTo(points[4], points[5]);
+  ctx.fill();
+}
+
+function sun(cx, cy, r) {
+  for (let a = 0; a < 360; a += 45) {
+    const rad = a * Math.PI / 180;
+    const x0 = Math.trunc(cx + Math.cos(rad) * sc(r + 4)), y0 = Math.trunc(cy + Math.sin(rad) * sc(r + 4));
+    const x1 = Math.trunc(cx + Math.cos(rad) * sc(r + 8)), y1 = Math.trunc(cy + Math.sin(rad) * sc(r + 8));
+    line(x0, y0, x1, y1, COL.sun);
+    line(x0 + 1, y0, x1 + 1, y1, COL.sun);
+  }
+  fillCircle(cx, cy, sc(r), COL.sun);
+}
+
+function moon(cx, cy, r) {
+  fillCircle(cx, cy, sc(r), COL.moon);
+  fillCircle(cx + sc(r / 2 + 2), cy - sc(r / 3), sc(r - 1), COL.bg);
+}
+
+function cloud(cx, cy, colour) {
+  fillCircle(cx - sc(10), cy + sc(2), sc(8), colour);
+  fillCircle(cx + sc(1), cy - sc(5), sc(11), colour);
+  fillCircle(cx + sc(11), cy + sc(2), sc(8), colour);
+  roundRect(cx - sc(18), cy + sc(1), sc(37), sc(10), sc(5), colour);
+}
+
+function iconFor(code) {
+  if (code === 0 || code === 1) return "clear";
+  if (code === 2) return "partly";
+  if (code === 3) return "cloudy";
+  if ([45, 48].includes(code)) return "fog";
+  if ([51, 53, 55, 56, 57, 61, 63, 65, 66, 67, 80, 81, 82].includes(code)) return "rain";
+  if ([71, 73, 75, 77, 85, 86].includes(code)) return "snow";
+  if ([95, 96, 99].includes(code)) return "thunder";
+  return "none";
+}
+
+function icon(kind, isDay, cx, cy) {
+  switch (kind) {
+    case "clear":
+      isDay ? sun(cx, cy, 10) : moon(cx, cy, 13);
+      break;
+    case "partly":
+      isDay ? sun(cx + sc(8), cy - sc(8), 8) : moon(cx + sc(8), cy - sc(8), 10);
+      cloud(cx - sc(3), cy + sc(5), COL.cloud);
+      break;
+    case "cloudy":
+      cloud(cx, cy, COL.cloud);
+      break;
+    case "fog":
+      for (let i = 0; i < 4; i++) {
+        const w = sc(i % 2 ? 30 : 38);
+        roundRect(cx - w / 2, cy - sc(12) + i * sc(8), w, sc(4), sc(2), COL.cloud);
+      }
+      break;
+    case "rain":
+      cloud(cx, cy - sc(6), COL.cloud);
+      for (let i = -1; i <= 1; i++) {
+        const x = cx + i * sc(10);
+        line(x + sc(2), cy + sc(9), x - sc(2), cy + sc(17), COL.rain);
+        line(x + sc(2) + 1, cy + sc(9), x - sc(2) + 1, cy + sc(17), COL.rain);
+      }
+      break;
+    case "snow":
+      cloud(cx, cy - sc(6), COL.cloud);
+      for (let i = -1; i <= 1; i++) {
+        const x = cx + i * sc(10);
+        fillCircle(x, cy + sc(12), 2, COL.snow);
+        fillCircle(x + sc(5), cy + sc(18), 2, COL.snow);
+      }
+      break;
+    case "thunder":
+      cloud(cx, cy - sc(6), COL.darkCloud);
+      triangle([cx + sc(2), cy + sc(4), cx - sc(6), cy + sc(14), cx + sc(1), cy + sc(14)], COL.sun);
+      triangle([cx - sc(1), cy + sc(12), cx + sc(6), cy + sc(12), cx - sc(3), cy + sc(22)], COL.sun);
+      break;
+  }
+}
+
+function text(font, str, x, y, colour, alignRight) {
+  ctx.font = font;
+  ctx.fillStyle = colour;
+  ctx.textAlign = alignRight ? "right" : "left";
+  ctx.textBaseline = "alphabetic";
+  ctx.fillText(str, x, y);
+}
+
+function weatherAt(w, x, iconY, tempY) {
+  icon(iconFor(w.code), w.isDay, x + 16, iconY);
+  const t = String(Math.round(w.temp));
+  ctx.font = FONT_12;
+  const m = ctx.measureText(t);
+  const tx = x + 38;
+  text(FONT_12, t, tx, tempY, COL.temp, false);
+  const top = Math.round(tempY - m.actualBoundingBoxAscent);
+  const dx = Math.round(tx + m.width + 5);
+  ctx.strokeStyle = COL.temp;
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.arc(dx + 0.5, top + 3.5, 2, 0, Math.PI * 2);
+  ctx.stroke();
+  text(FONT_9, "C", dx + 4, top + 13, COL.temp, false);
+}
+
+function track(hex, x, y) {
+  ctx.fillStyle = COL.text;
+  const bw = (TRACK_W + 7) >> 3;
+  for (let row = 0; row < TRACK_H; row++) {
+    for (let col = 0; col < TRACK_W; col++) {
+      const byte = parseInt(hex.substr((row * bw + (col >> 3)) * 2, 2), 16);
+      if (byte & (0x80 >> (col & 7))) ctx.fillRect(x + col, y + row, 1, 1);
+    }
+  }
+}
+
+function block(x, y, w, h, pane) {
+  ctx.strokeStyle = COL.border;
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.roundRect(x + 0.5, y + 0.5, w - 1, h - 1, 6);
+  ctx.stroke();
+  text(FONT_TITLE, pane.title, x + 10, y + 26, COL.race, false);
+  if (pane.track) track(pane.track, x + w - 10 - TRACK_W, y + 8);
+  if (pane.forecast) weatherAt(pane.forecast, x + 10, y + h - 74, y + h - 64);
+  text(FONT_12, pane.place, x + 10, y + h - 36, COL.text, false);
+  text(FONT_9, pane.when, x + 10, y + h - 14, COL.dim, false);
+}
+
+function draw() {
+  if (!state) return;
+  const landscape = state.landscape;
+  const W = landscape ? 480 : 320, H = landscape ? 320 : 480;
+  const scale = 2;
+  canvas.width = W * scale;
+  canvas.height = H * scale;
+  canvas.classList.toggle("portrait", !landscape);
+  ctx.setTransform(scale, 0, 0, scale, 0, 0);
+  ctx.fillStyle = COL.bg;
+  ctx.fillRect(0, 0, W, H);
+
+  const layout = landscape ? LAYOUTS.landscape : LAYOUTS.portrait;
+  const rowW = landscape ? Math.floor(W * 40 / 100) : W;
+  const rowStep = Math.floor(H / 3);
+  const config = draft || state.config;
+
+  state.clocks.forEach((saved, i) => {
+    const loc = config.locations[i];
+    const c = loc.tz === state.config.locations[i].tz ? saved : clockFor(loc);
+    const y = i * rowStep;
+    if (i > 0) line(PAD, y, rowW - PAD - 1, y, COL.line);
+    text(FONT_12, loc.name, PAD, y + layout.title, COL.name, false);
+    text(FONT_16, c.time, rowW - PAD, y + layout.title, COL.text, true);
+    text(FONT_9, c.date, rowW - PAD, y + layout.date, COL.dim, true);
+    if (c.weather) weatherAt(c.weather, PAD, y + layout.icon, y + layout.temp);
+    else text(FONT_12, "--", PAD, y + layout.temp, COL.dim, false);
+  });
+
+  if (landscape) {
+    const gap = 8;
+    const x = rowW + gap, w = W - x - gap, h = Math.floor((H - 3 * gap) / 2);
+    block(x, gap, w, h, state.paneData[config.panes[0]]);
+    block(x, 2 * gap + h, w, h, state.paneData[config.panes[1]]);
+  }
+}
+
+function clockFor(loc) {
+  const parts = {};
+  const fmt = new Intl.DateTimeFormat("en-GB", {
+    timeZone: loc.zone, hour: "2-digit", minute: "2-digit", hourCycle: "h23",
+    weekday: "short", day: "2-digit", month: "short",
+  });
+  for (const p of fmt.formatToParts(new Date())) parts[p.type] = p.value;
+  return { time: `${parts.hour}:${parts.minute}`, date: `${parts.weekday} ${parts.day} ${parts.month}` };
+}
+
+async function refresh() {
+  try {
+    const res = await fetch("/api/state");
+    if (res.ok) {
+      state = await res.json();
+      draw();
+    }
+  } catch (e) {
+    console.log("refresh failed", e);
+  }
+}
+
+const setup = document.getElementById("setup");
+const gear = document.getElementById("gear");
+const message = document.getElementById("message");
+
+function say(msg, error) {
+  message.textContent = msg;
+  message.classList.toggle("error", !!error);
+}
+
+function metaText(loc) {
+  const parts = [loc.country, loc.zone || loc.tz, `${loc.lat.toFixed(2)}, ${loc.lon.toFixed(2)}`];
+  return parts.filter(Boolean).join(" · ");
+}
+
+async function loadZones() {
+  if (!zones) zones = await (await fetch("/zones.json")).json();
+  return zones;
+}
+
+async function search(card, i) {
+  const q = card.querySelector("[name=query]").value.trim();
+  const results = card.querySelector(".results");
+  results.replaceChildren();
+  if (!q) return;
+  try {
+    const url = "https://geocoding-api.open-meteo.com/v1/search?count=5&language=en&format=json&name=" + encodeURIComponent(q);
+    const [data, table] = await Promise.all([fetch(url).then(r => r.json()), loadZones()]);
+    const found = (data.results || []).filter(r => table[r.timezone]);
+    if (!found.length) {
+      results.textContent = "No matches";
+      return;
+    }
+    for (const r of found) {
+      const b = document.createElement("button");
+      b.type = "button";
+      b.textContent = [r.name, r.admin1, r.country].filter(Boolean).join(", ");
+      b.onclick = () => {
+        draft.locations[i] = {
+          name: r.name.slice(0, 31), country: r.country || "", zone: r.timezone,
+          tz: table[r.timezone], lat: r.latitude, lon: r.longitude,
+        };
+        card.querySelector("[name=name]").value = draft.locations[i].name;
+        card.querySelector(".meta").textContent = metaText(draft.locations[i]);
+        results.replaceChildren();
+        draw();
+      };
+      results.append(b);
+    }
+  } catch (e) {
+    results.textContent = "Search failed";
+  }
+}
+
+function openSetup() {
+  draft = structuredClone(state.config);
+  const list = document.getElementById("locations");
+  list.replaceChildren();
+  list.style.display = "grid";
+  list.style.gap = "12px";
+  draft.locations.forEach((loc, i) => {
+    const card = document.getElementById("location-card").content.firstElementChild.cloneNode(true);
+    card.querySelector("h2").textContent = SLOTS[i];
+    const name = card.querySelector("[name=name]");
+    name.value = loc.name;
+    name.oninput = () => { draft.locations[i].name = name.value; draw(); };
+    card.querySelector(".meta").textContent = metaText(loc);
+    const query = card.querySelector("[name=query]");
+    card.querySelector("[name=find]").onclick = () => search(card, i);
+    query.onkeydown = e => {
+      if (e.key === "Enter") {
+        e.preventDefault();
+        search(card, i);
+      }
+    };
+    list.append(card);
+  });
+  for (let p = 0; p < 2; p++) {
+    const select = document.getElementById("pane" + p);
+    select.replaceChildren(...state.paneTypes.map(t => new Option(t.title, t.id)));
+    select.value = draft.panes[p];
+    select.onchange = () => { draft.panes[p] = select.value; draw(); };
+  }
+  say("");
+  setup.hidden = false;
+  gear.setAttribute("aria-expanded", "true");
+}
+
+function closeSetup() {
+  draft = null;
+  setup.hidden = true;
+  gear.setAttribute("aria-expanded", "false");
+  draw();
+}
+
+gear.onclick = () => (setup.hidden ? openSetup() : closeSetup());
+document.getElementById("cancel").onclick = closeSetup;
+
+setup.onsubmit = async e => {
+  e.preventDefault();
+  say("Saving...");
+  try {
+    const res = await fetch("/api/config", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(draft),
+    });
+    if (!res.ok) throw new Error((await res.json()).error || res.status);
+    closeSetup();
+    await refresh();
+    setTimeout(refresh, 8000);
+  } catch (err) {
+    say("Save failed: " + err.message, true);
+  }
+};
+
+refresh();
+setInterval(refresh, 20000);
+</script>
+</body>
+</html>

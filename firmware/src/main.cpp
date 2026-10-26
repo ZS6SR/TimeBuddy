@@ -1,8 +1,10 @@
 #include <Arduino.h>
 #include <ArduinoJson.h>
 #include <Arduino_GFX_Library.h>
+#include <ESPmDNS.h>
 #include <HTTPClient.h>
 #include <Preferences.h>
+#include <WebServer.h>
 #include <WiFi.h>
 #include <WiFiClientSecure.h>
 #include <time.h>
@@ -10,9 +12,10 @@
 #include "config.h"
 #include "secrets.h"
 #include "tracks.h"
+#include "web.h"
 #include "fonts/FreeSans9pt7b.h"
 #include "fonts/FreeSans12pt7b.h"
-#include "fonts/FreeSans18pt7b.h"
+#include "fonts/FreeSans16pt7b.h"
 #include "fonts/FreeSansBoldOblique12pt7b.h"
 
 static const int PAD = 14;
@@ -44,6 +47,7 @@ Arduino_GFX *gfx = new Arduino_ILI9486(bus, PIN_RST, PORTRAIT_ROTATION);
 
 Arduino_Canvas *canvas = nullptr;
 Preferences prefs;
+WebServer server(80);
 
 struct Layout {
   int title, date, icon, temp;
@@ -78,6 +82,31 @@ struct Race {
 
 static Race motogp;
 static Race f1;
+
+struct PaneType {
+  const char *id;
+  const char *title;
+  const Race *race;
+};
+
+static const PaneType PANE_TYPES[] = {
+    {"motogp", "MotoGP", &motogp},
+    {"f1", "F1", &f1},
+};
+static const int PANE_TYPE_COUNT = sizeof(PANE_TYPES) / sizeof(PANE_TYPES[0]);
+
+struct Place {
+  char name[32];
+  char country[32];
+  char zone[48];
+  char tz[64];
+  float lat;
+  float lon;
+};
+
+static Place places[3];
+static int panes[2] = {0, 1};
+static bool configChanged = false;
 static unsigned long lastMotoGPFetch = 0;
 static unsigned long lastF1Fetch = 0;
 static bool motogpFetched = false;
@@ -221,29 +250,35 @@ static void showStatus(const char *line1, const char *line2) {
   gfx->print(line2);
 }
 
-static void localTimeFor(const Location &loc, time_t now, struct tm *out);
+static void localTimeFor(const Place &loc, time_t now, struct tm *out);
 
-static void drawBlock(int x, int y, int w, int h, const char *title, const Race &race) {
-  gfx->drawRoundRect(x, y, w, h, 6, COL_BORDER);
-  gfx->setFont(&FreeSansBoldOblique12pt7b);
-  gfx->setTextColor(COL_RACE);
-  gfx->setCursor(x + 10, y + 26);
-  gfx->print(title);
-  if (race.track) {
-    gfx->drawBitmap(x + w - 10 - TRACK_W, y + 8, race.track->bits, TRACK_W, TRACK_H, COL_TEXT);
-  }
-
-  char when[48] = "--";
+static void raceWhen(const Race &race, char *when, size_t size) {
+  snprintf(when, size, "--");
   if (race.start) {
-    const Location &loc = LOCATIONS[RACE_TIME_LOCATION];
+    const Place &loc = places[RACE_TIME_LOCATION];
     struct tm from, to;
     localTimeFor(loc, race.weekendStart ? race.weekendStart : race.start, &from);
     localTimeFor(loc, race.start, &to);
     char a[16], b[24];
     strftime(a, sizeof(a), from.tm_mon == to.tm_mon ? "%d" : "%d %b", &from);
     strftime(b, sizeof(b), "%d %b %H:%M", &to);
-    snprintf(when, sizeof(when), "%s - %s", a, b);
+    snprintf(when, size, "%s - %s", a, b);
   }
+}
+
+static void drawBlock(int x, int y, int w, int h, const PaneType &type) {
+  const Race &race = *type.race;
+  gfx->drawRoundRect(x, y, w, h, 6, COL_BORDER);
+  gfx->setFont(&FreeSansBoldOblique12pt7b);
+  gfx->setTextColor(COL_RACE);
+  gfx->setCursor(x + 10, y + 26);
+  gfx->print(type.title);
+  if (race.track) {
+    gfx->drawBitmap(x + w - 10 - TRACK_W, y + 8, race.track->bits, TRACK_W, TRACK_H, COL_TEXT);
+  }
+
+  char when[48];
+  raceWhen(race, when, sizeof(when));
   if (race.forecast.valid) {
     drawWeather(gfx, race.forecast, x + 10, y + h - 74, y + h - 64);
   }
@@ -264,8 +299,8 @@ static void drawPane() {
     int w = scrW - x - gap;
     int h = (scrH - 3 * gap) / 2;
     gfx->fillRect(rowW, 0, scrW - rowW, scrH, COL_BG);
-    drawBlock(x, gap, w, h, "MotoGP", motogp);
-    drawBlock(x, 2 * gap + h, w, h, "F1", f1);
+    drawBlock(x, gap, w, h, PANE_TYPES[panes[0]]);
+    drawBlock(x, 2 * gap + h, w, h, PANE_TYPES[panes[1]]);
   }
 }
 
@@ -284,14 +319,14 @@ static void applyOrientation() {
   drawPane();
 }
 
-static void localTimeFor(const Location &loc, time_t now, struct tm *out) {
-  setenv("TZ", loc.posixTz, 1);
+static void localTimeFor(const Place &loc, time_t now, struct tm *out) {
+  setenv("TZ", loc.tz, 1);
   tzset();
   localtime_r(&now, out);
 }
 
 static void drawRow(int i, time_t now) {
-  const Location &loc = LOCATIONS[i];
+  const Place &loc = places[i];
   struct tm t;
   localTimeFor(loc, now, &t);
 
@@ -304,7 +339,7 @@ static void drawRow(int i, time_t now) {
 
   char buf[32];
   strftime(buf, sizeof(buf), "%H:%M", &t);
-  printAt(&FreeSans18pt7b, buf, rowW - PAD, layout->title, COL_TEXT, true);
+  printAt(&FreeSans16pt7b, buf, rowW - PAD, layout->title, COL_TEXT, true);
   strftime(buf, sizeof(buf), "%a %d %b", &t);
   printAt(&FreeSans9pt7b, buf, rowW - PAD, layout->date, COL_DIM, true);
 
@@ -331,12 +366,12 @@ static bool fetchWeather() {
   String url = "https://api.open-meteo.com/v1/forecast?current=temperature_2m,weather_code,is_day&latitude=";
   for (int i = 0; i < 3; i++) {
     if (i) url += ",";
-    url += String(LOCATIONS[i].lat, 4);
+    url += String(places[i].lat, 4);
   }
   url += "&longitude=";
   for (int i = 0; i < 3; i++) {
     if (i) url += ",";
-    url += String(LOCATIONS[i].lon, 4);
+    url += String(places[i].lon, 4);
   }
 
   WiFiClientSecure client;
@@ -604,6 +639,180 @@ static bool fetchF1Race() {
   return false;
 }
 
+static void loadDefaults() {
+  for (int i = 0; i < 3; i++) {
+    Place &p = places[i];
+    strlcpy(p.name, LOCATIONS[i].name, sizeof(p.name));
+    strlcpy(p.country, LOCATIONS[i].country, sizeof(p.country));
+    p.zone[0] = '\0';
+    strlcpy(p.tz, LOCATIONS[i].posixTz, sizeof(p.tz));
+    p.lat = LOCATIONS[i].lat;
+    p.lon = LOCATIONS[i].lon;
+  }
+  panes[0] = 0;
+  panes[1] = 1;
+}
+
+static int paneIndex(const char *id) {
+  for (int i = 0; i < PANE_TYPE_COUNT; i++) {
+    if (strcmp(PANE_TYPES[i].id, id) == 0) return i;
+  }
+  return -1;
+}
+
+static bool applyConfig(JsonObjectConst cfg) {
+  JsonArrayConst locs = cfg["locations"];
+  JsonArrayConst ids = cfg["panes"];
+  if (locs.size() != 3 || ids.size() != 2) return false;
+
+  Place next[3];
+  for (int i = 0; i < 3; i++) {
+    JsonObjectConst l = locs[i];
+    const char *tz = l["tz"] | "";
+    if (!*tz || !l["lat"].is<float>() || !l["lon"].is<float>()) return false;
+    strlcpy(next[i].name, l["name"] | "", sizeof(next[i].name));
+    strlcpy(next[i].country, l["country"] | "", sizeof(next[i].country));
+    strlcpy(next[i].zone, l["zone"] | "", sizeof(next[i].zone));
+    strlcpy(next[i].tz, tz, sizeof(next[i].tz));
+    next[i].lat = l["lat"];
+    next[i].lon = l["lon"];
+  }
+  int nextPanes[2];
+  for (int i = 0; i < 2; i++) {
+    nextPanes[i] = paneIndex(ids[i] | "");
+    if (nextPanes[i] < 0) return false;
+  }
+
+  memcpy(places, next, sizeof(places));
+  memcpy(panes, nextPanes, sizeof(panes));
+  return true;
+}
+
+static void configToJson(JsonObject cfg) {
+  JsonArray locs = cfg["locations"].to<JsonArray>();
+  for (const Place &p : places) {
+    JsonObject l = locs.add<JsonObject>();
+    l["name"] = p.name;
+    l["country"] = p.country;
+    l["zone"] = p.zone;
+    l["tz"] = p.tz;
+    l["lat"] = p.lat;
+    l["lon"] = p.lon;
+  }
+  JsonArray ids = cfg["panes"].to<JsonArray>();
+  for (int p : panes) {
+    ids.add(PANE_TYPES[p].id);
+  }
+}
+
+static void loadConfig() {
+  loadDefaults();
+  String saved = prefs.getString("config", "");
+  if (saved.isEmpty()) return;
+  JsonDocument doc;
+  if (deserializeJson(doc, saved) || !applyConfig(doc.as<JsonObjectConst>())) {
+    Serial.println("Saved config invalid, using defaults");
+    loadDefaults();
+  }
+}
+
+static void saveConfig() {
+  JsonDocument doc;
+  configToJson(doc.to<JsonObject>());
+  String out;
+  serializeJson(doc, out);
+  prefs.putString("config", out);
+}
+
+static void weatherToJson(JsonObject out, const Weather &w) {
+  out["temp"] = w.temp;
+  out["code"] = w.code;
+  out["isDay"] = w.isDay;
+}
+
+static void sendGzip(const char *type, const uint8_t *data, size_t len) {
+  server.sendHeader("Content-Encoding", "gzip");
+  server.sendHeader("Cache-Control", "no-cache");
+  server.send_P(200, type, (PGM_P)data, len);
+}
+
+static void handleState() {
+  JsonDocument doc;
+  doc["landscape"] = landscape;
+  configToJson(doc["config"].to<JsonObject>());
+
+  JsonArray types = doc["paneTypes"].to<JsonArray>();
+  for (const PaneType &t : PANE_TYPES) {
+    JsonObject o = types.add<JsonObject>();
+    o["id"] = t.id;
+    o["title"] = t.title;
+  }
+
+  time_t now = time(nullptr);
+  JsonArray clocks = doc["clocks"].to<JsonArray>();
+  for (int i = 0; i < 3; i++) {
+    struct tm t;
+    localTimeFor(places[i], now, &t);
+    char buf[32];
+    JsonObject c = clocks.add<JsonObject>();
+    strftime(buf, sizeof(buf), "%H:%M", &t);
+    c["time"] = buf;
+    strftime(buf, sizeof(buf), "%a %d %b", &t);
+    c["date"] = buf;
+    if (weather[i].valid) weatherToJson(c["weather"].to<JsonObject>(), weather[i]);
+  }
+
+  static const char HEX_DIGITS[] = "0123456789abcdef";
+  JsonObject blocks = doc["paneData"].to<JsonObject>();
+  for (const PaneType &type : PANE_TYPES) {
+    const Race &race = *type.race;
+    JsonObject b = blocks[type.id].to<JsonObject>();
+    b["title"] = type.title;
+    b["place"] = race.place;
+    char when[48];
+    raceWhen(race, when, sizeof(when));
+    b["when"] = when;
+    if (race.forecast.valid) weatherToJson(b["forecast"].to<JsonObject>(), race.forecast);
+    if (race.track) {
+      const size_t len = (TRACK_W + 7) / 8 * TRACK_H;
+      String hex;
+      hex.reserve(len * 2);
+      for (size_t k = 0; k < len; k++) {
+        uint8_t v = pgm_read_byte(&race.track->bits[k]);
+        hex += HEX_DIGITS[v >> 4];
+        hex += HEX_DIGITS[v & 15];
+      }
+      b["track"] = hex;
+    }
+  }
+
+  String out;
+  serializeJson(doc, out);
+  server.send(200, "application/json", out);
+}
+
+static void handleSaveConfig() {
+  JsonDocument doc;
+  if (deserializeJson(doc, server.arg("plain")) || !applyConfig(doc.as<JsonObjectConst>())) {
+    server.send(400, "application/json", "{\"error\":\"invalid config\"}");
+    return;
+  }
+  saveConfig();
+  configChanged = true;
+  server.send(200, "application/json", "{}");
+}
+
+static void startWebServer() {
+  server.on("/", HTTP_GET, [] { sendGzip("text/html", WEB_INDEX, WEB_INDEX_LEN); });
+  server.on("/zones.json", HTTP_GET, [] { sendGzip("application/json", WEB_ZONES, WEB_ZONES_LEN); });
+  server.on("/api/state", HTTP_GET, handleState);
+  server.on("/api/config", HTTP_POST, handleSaveConfig);
+  server.begin();
+  if (MDNS.begin(WEB_HOSTNAME)) {
+    MDNS.addService("http", "tcp", 80);
+  }
+}
+
 static void connectWiFi() {
   if (WiFi.status() == WL_CONNECTED) return;
   WiFi.mode(WIFI_STA);
@@ -620,6 +829,7 @@ void setup() {
   pinMode(PIN_BUTTON, INPUT_PULLUP);
   prefs.begin("timebuddy");
   landscape = prefs.getBool("landscape", false);
+  loadConfig();
 
   if (!gfx->begin()) {
     Serial.println("Display init failed");
@@ -637,11 +847,15 @@ void setup() {
     }
   }
 
-  showStatus("TimeBuddy", "Syncing time...");
+  startWebServer();
+  String address = "http://" + WiFi.localIP().toString();
+  Serial.println(address);
+  showStatus("Syncing time...", address.c_str());
   configTime(0, 0, "pool.ntp.org", "time.google.com");
   while (time(nullptr) < 1700000000) {
     delay(250);
   }
+  delay(3000);
   gfx->fillScreen(COL_BG);
   drawPane();
 }
@@ -650,8 +864,18 @@ void loop() {
   if (WiFi.status() != WL_CONNECTED) {
     connectWiFi();
   }
+  server.handleClient();
 
   bool redraw = false;
+  if (configChanged) {
+    configChanged = false;
+    for (Weather &w : weather) {
+      w.valid = false;
+    }
+    lastWeatherFetch = 0;
+    drawPane();
+    redraw = true;
+  }
   unsigned long interval = weatherEverFetched ? WEATHER_REFRESH_MS : WEATHER_RETRY_MS;
   if (lastWeatherFetch == 0 || millis() - lastWeatherFetch >= interval) {
     lastWeatherFetch = millis();

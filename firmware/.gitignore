@@ -1,3 +1,4 @@
 .pio/
 include/secrets.h
 include/locations.h
+include/web.h
