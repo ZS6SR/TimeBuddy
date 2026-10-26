@@ -10,6 +10,28 @@ The three locations are set in `firmware/include/locations.h` (not stored in the
 - latitude and longitude, used for the weather
 - a POSIX TZ string, used for the time (for example `GMT0BST,M3.5.0/1,M10.5.0` for London)
 
+## Screen layout
+
+Each clock row shows the location label, the local time and date, and the current weather (icon and temperature in °C).
+
+In landscape the clocks take the left 40% of the screen. The right side has two panes:
+
+| Pane | Shows |
+|---|---|
+| MotoGP | Next MotoGP Grand Prix race |
+| F1 | Next Formula 1 race |
+
+Each pane shows:
+
+- the circuit outline (top right)
+- the expected weather at the circuit at race start, once the race is within about 15 days
+- the circuit location
+- the race weekend dates (first practice to race day) and the race start time
+
+Dates and times are shown in the time zone of the location set by `RACE_TIME_LOCATION` in `firmware/include/config.h` (an index into `LOCATIONS`). Race data is refreshed every 6 hours. Sources: the MotoGP calendar API, the [Jolpica F1 API](https://github.com/jolpica/jolpica-f1) and [Open-Meteo](https://open-meteo.com/) for the forecast.
+
+Portrait shows the clocks only.
+
 ## Hardware
 
 - ESP32-C3 SuperMini (HW-466AB)
@@ -109,6 +131,17 @@ All settings are in `firmware/include/config.h`. Change one, then upload again.
 | Screen stays white or shows noise | `DISPLAY_ST7796` — change `0` to `1` |
 | Picture is upside down | `PORTRAIT_ROTATION` — change `4` to `6`; `LANDSCAPE_ROTATION` — change `1` to `3` |
 | Black background shows white | `DISPLAY_INVERT` — change `false` to `true` |
+
+## Regenerating the track outlines
+
+The circuit outlines are stored in `firmware/include/tracks.h`. To pick up new circuits, run:
+
+```
+pip install pillow
+python tools/make_tracks.py
+```
+
+MotoGP outlines come from the MotoGP calendar, F1 outlines from [bacinger/f1-circuits](https://github.com/bacinger/f1-circuits) (MIT licence). The screen shows the outline of the circuit nearest to the race location.
 
 ## Regenerating the case
 
