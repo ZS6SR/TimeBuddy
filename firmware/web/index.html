@@ -149,6 +149,8 @@
   .message { flex: 1; color: var(--dim); font-size: 14px; }
   .message.error { color: var(--error); }
   .message.ok { color: var(--ok); }
+  progress { width: 100%; height: 8px; accent-color: var(--accent); }
+  input[type=file] { padding: 6px; }
   @media (max-width: 480px) {
     .item { grid-template-columns: 1fr; gap: 6px; }
     .slot { justify-self: start; margin-top: 0; }
@@ -230,6 +232,24 @@
       <div class="actions">
         <span class="message" id="network-message"></span>
         <button type="submit" class="primary">Save and restart</button>
+      </div>
+    </section>
+  </form>
+
+  <form id="firmware">
+    <section>
+      <div class="head">
+        <span class="icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12M7 10l5 5 5-5"/><path d="M4 17v3h16v-3"/></svg></span>
+        <div><h2>Firmware</h2><p id="firmware-version"></p></div>
+      </div>
+      <div class="body">
+        <div><label for="firmware-file">Firmware file (firmware.bin)</label><input id="firmware-file" type="file" accept=".bin" required></div>
+        <progress id="firmware-progress" max="100" value="0" hidden></progress>
+        <p class="hint">Build with <code>pio run -e timebuddy</code>, then pick <code>firmware/.pio/build/timebuddy/firmware.bin</code>. Or upload straight from PlatformIO with <code>pio run -e ota -t upload</code>. Settings are kept.</p>
+      </div>
+      <div class="actions">
+        <span class="message" id="firmware-message"></span>
+        <button type="submit" class="primary">Upload and restart</button>
       </div>
     </section>
   </form>
@@ -613,6 +633,8 @@ function fillNetwork() {
 function openSetup() {
   fillDisplay();
   fillNetwork();
+  document.getElementById("firmware-version").textContent = "Running build from " + state.firmware;
+  say("firmware-message", "");
   setup.hidden = false;
   gear.setAttribute("aria-expanded", "true");
 }
@@ -694,6 +716,58 @@ networkForm.onsubmit = async e => {
   } catch (err) {
     say("network-message", "Save failed: " + err.message, "error");
   }
+};
+
+const firmwareForm = document.getElementById("firmware");
+
+async function waitForRestart() {
+  const deadline = Date.now() + 90000;
+  await new Promise(r => setTimeout(r, 5000));
+  while (Date.now() < deadline) {
+    try {
+      const res = await fetch("/api/state", { cache: "no-store" });
+      if (res.ok) return true;
+    } catch (e) {}
+    await new Promise(r => setTimeout(r, 2000));
+  }
+  return false;
+}
+
+firmwareForm.onsubmit = e => {
+  e.preventDefault();
+  const file = document.getElementById("firmware-file").files[0];
+  if (!file) return;
+  const progress = document.getElementById("firmware-progress");
+  const button = firmwareForm.querySelector("button[type=submit]");
+  const body = new FormData();
+  body.append("firmware", file);
+  const xhr = new XMLHttpRequest();
+  xhr.open("POST", "/update");
+  xhr.upload.onprogress = ev => {
+    if (ev.lengthComputable) progress.value = Math.round(ev.loaded * 100 / ev.total);
+  };
+  xhr.onload = async () => {
+    if (xhr.status !== 200) {
+      let error = xhr.status;
+      try { error = JSON.parse(xhr.responseText).error; } catch (err) {}
+      say("firmware-message", "Update failed: " + error, "error");
+      button.disabled = false;
+      return;
+    }
+    clearInterval(polling);
+    say("firmware-message", "Updated. Waiting for TimeBuddy to restart...", "ok");
+    if (await waitForRestart()) location.reload();
+    else say("firmware-message", "TimeBuddy hasn't come back yet. Check the screen.", "error");
+  };
+  xhr.onerror = () => {
+    say("firmware-message", "Upload failed: connection lost", "error");
+    button.disabled = false;
+  };
+  progress.hidden = false;
+  progress.value = 0;
+  button.disabled = true;
+  say("firmware-message", "Uploading...");
+  xhr.send(body);
 };
 
 async function start() {

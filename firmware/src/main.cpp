@@ -8,6 +8,7 @@
 #include <WebServer.h>
 #include <WiFi.h>
 #include <WiFiClientSecure.h>
+#include <Update.h>
 #include <time.h>
 
 #include "config.h"
@@ -824,6 +825,7 @@ static void handleState() {
   doc["landscape"] = landscape;
   doc["setupMode"] = setupMode;
   doc["setupSsid"] = SETUP_AP_SSID;
+  doc["firmware"] = __DATE__ " " __TIME__;
   JsonObject n = doc["network"].to<JsonObject>();
   n["ssid"] = net.ssid;
   n["hasPassword"] = net.password[0] != '\0';
@@ -913,12 +915,47 @@ static void handleSaveNetwork() {
   restartAt = millis() + 1500;
 }
 
+static void handleUpdateDone() {
+  lastWebActivity = millis();
+  if (Update.hasError() || !Update.isFinished()) {
+    String error = Update.hasError() ? Update.errorString() : "No firmware received";
+    server.send(500, "application/json", "{\"error\":\"" + error + "\"}");
+    showStatus("Update failed", error.c_str());
+    restartAt = millis() + 5000;
+    return;
+  }
+  server.send(200, "application/json", "{}");
+  showStatus("Update complete", "Restarting...");
+  restartAt = millis() + 1000;
+}
+
+static void handleUpdateUpload() {
+  HTTPUpload &upload = server.upload();
+  switch (upload.status) {
+    case UPLOAD_FILE_START:
+      Serial.printf("Update: %s\n", upload.filename.c_str());
+      showStatus("Updating firmware", "Don't unplug TimeBuddy");
+      Update.begin(UPDATE_SIZE_UNKNOWN);
+      break;
+    case UPLOAD_FILE_WRITE:
+      if (Update.isRunning()) Update.write(upload.buf, upload.currentSize);
+      break;
+    case UPLOAD_FILE_END:
+      if (Update.isRunning()) Update.end(true);
+      break;
+    case UPLOAD_FILE_ABORTED:
+      Update.abort();
+      break;
+  }
+}
+
 static void startWebServer() {
   server.on("/", HTTP_GET, [] { sendGzip("text/html", WEB_INDEX, WEB_INDEX_LEN); });
   server.on("/zones.json", HTTP_GET, [] { sendGzip("application/json", WEB_ZONES, WEB_ZONES_LEN); });
   server.on("/api/state", HTTP_GET, handleState);
   server.on("/api/config", HTTP_POST, handleSaveConfig);
   server.on("/api/network", HTTP_POST, handleSaveNetwork);
+  server.on("/update", HTTP_POST, handleUpdateDone, handleUpdateUpload);
   server.onNotFound([] {
     if (setupMode) {
       server.sendHeader("Location", "http://" + WiFi.softAPIP().toString() + "/");

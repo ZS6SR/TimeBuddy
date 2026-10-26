@@ -13,6 +13,7 @@ The page shows a live copy of the screen. Click the gear to change:
 - **Clocks**: the top, middle and bottom locations. Search for a place, pick it from the list, and edit the label if needed.
 - **Right side**: which pane goes in the top right and bottom right.
 - **Network**: Wi-Fi name and password, and either an automatic (DHCP) or static IP address. Leave the password empty to keep the current one. Saving restarts TimeBuddy.
+- **Firmware**: upload a new `firmware.bin`. See [Updating over Wi-Fi](#updating-over-wi-fi).
 
 The preview updates as you change things. Press Save display to apply the clocks and panes. Settings are stored on the device and kept after power-off.
 
@@ -141,6 +142,17 @@ These pins match `firmware/include/config.h`.
 4. Unplug it and power it from any USB charger.
 
 The screen shows "Connecting…", then "Syncing time…" with the setup page address, then the three clocks. Temperatures update every 10 minutes.
+
+### Updating over Wi-Fi
+
+Once TimeBuddy has been flashed over USB with this firmware, later updates can go over Wi-Fi. Settings are kept.
+
+- From PlatformIO: `pio run -e ota -t upload`. If `timebuddy.local` doesn't resolve, add `--upload-port <address>`.
+- From the setup page: build with `pio run -e timebuddy`, then upload `firmware/.pio/build/timebuddy/firmware.bin` in the Firmware section.
+
+The screen shows "Updating firmware" while it writes, then restarts. A file that isn't TimeBuddy firmware is rejected and the running firmware is left as it was.
+
+If you're coming from a version without the Firmware section, flash once over USB first: the flash layout changed to make room for updates.
 
 ### 5. Switch between portrait and landscape
 
