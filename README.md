@@ -1,10 +1,12 @@
 # TimeBuddy
 
-A small desk display showing the current time and temperature in three locations.
+A small desk display showing the time and weather in three locations, plus the next MotoGP and F1 races. Everything is set up from a web page served by the display itself.
 
 ## Setup page
 
 Open `http://timebuddy.local` in a browser on the same network. If that doesn't load, use the address shown on the screen while it says "Syncing time…" (also printed on the serial monitor).
+
+TimeBuddy only serves plain HTTP. If you give it a name under a domain that browsers force onto HTTPS (every `.dev` domain, for example), put a reverse proxy such as Traefik or nginx in front of it to handle HTTPS.
 
 The page shows a live copy of the screen. Click the gear to change:
 
@@ -52,18 +54,22 @@ Portrait shows the clocks only.
 
 ## Hardware
 
-- ESP32-C3 SuperMini (HW-466AB)
-- 3.5" TFT LCD Shield, Arduino UNO format, 480x320, 8-bit parallel (ILI9486 or ST7796 controller), PCB 85.49 x 55.63 mm
-- USB-C cable and USB power supply
-- 15 female-to-female jumper wires (or solder wires directly)
+| Qty | Part | Notes |
+|---|---|---|
+| 1 | ESP32-C3 SuperMini (HW-466AB) | Wi-Fi microcontroller with USB-C |
+| 1 | 3.5" TFT LCD Shield, Arduino UNO format | 480x320, 8-bit parallel, ILI9486 or ST7796 controller, PCB 85.49 x 55.63 mm |
+| 15 | Female-to-female jumper wires | Or solder wires directly |
+| 1 | Short wire for the `LCD_CS` to `GND` jumper on the screen | See wiring |
+| 1 | USB-C cable | Data-capable for flashing |
+| 1 | USB power supply | Any phone charger |
+| 1 | 3D-printed case: frame, back and stand | PLA, see Print the case |
+| — | Double-sided tape and a little hot glue | Holds the ESP32 and the screen in the frame |
 
 ## Photos
 
 <img src="docs/photos/WhatsApp%20Image%202026-10-26%20at%2007.47.59.jpeg" alt="Screen shield, back" width="160">
 <img src="docs/photos/WhatsApp%20Image%202026-10-26%20at%2007.56.12.jpeg" alt="ESP32-C3 SuperMini" width="140">
 <img src="docs/photos/WhatsApp%20Image%202026-10-26%20at%2008.11.37.jpeg" alt="Screen size, front" width="160">
-<img src="docs/photos/WhatsApp%20Image%202026-10-26%20at%2008.11.50.jpeg" alt="Screen size, front" width="160">
-<img src="docs/photos/WhatsApp%20Image%202026-10-26%20at%2008.13.16.jpeg" alt="Screen size, front" width="160">
 
 <img src="docs/photos/WhatsApp%20Image%202026-10-26%20at%2015.47.39%20(1).jpeg" alt="Wired up in the frame, back view" width="320">
 <img src="docs/photos/WhatsApp%20Image%202026-10-26%20at%2015.47.39.jpeg" alt="Wired up in the frame, side view" width="320">
